@@ -13,6 +13,13 @@ const {
   validateBlogData,
   generateSlug,
 } = require('../helpers/blogValidator');
+const {
+  escapeRegex,
+  sanitizeStatus,
+  sanitizeStringArray,
+  sanitizePagination,
+  sanitizeSlug,
+} = require('../helpers/securityHelper');
 const { parse } = require('csv-parse/sync');
 const blogEvents = require('../events/blogEvents');
 
