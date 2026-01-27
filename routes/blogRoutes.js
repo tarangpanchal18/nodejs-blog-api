@@ -6,6 +6,7 @@ const authenticate = require('../middleware/auth');
 
 // Public routes
 router.get('/', blogController.getAllBlogs);
+router.get('/tags/search', blogController.searchTags);
 
 // Protected routes (require authentication)
 // IMPORTANT: Specific routes must come before parameterized routes (/:slug)

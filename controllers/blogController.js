@@ -459,6 +459,72 @@ const getMyBlogs = async (req, res) => {
   }
 };
 
+/**
+ * Search tags and return tags with count
+ * @route GET /blog/tags/search
+ */
+const searchTags = async (req, res) => {
+  try {
+    const searchQuery = req.query.q || req.query.search || '';
+    
+    // Sanitize search query
+    const trimmedQuery = searchQuery.trim();
+    
+    if (!trimmedQuery || trimmedQuery.length === 0) {
+      return sendValidationError(res, 'Search query is required');
+    }
+
+    // Escape regex special characters and convert to lowercase (tags are stored lowercase)
+    const sanitizedQuery = escapeRegex(trimmedQuery.toLowerCase());
+
+    // Use MongoDB aggregation pipeline for optimal performance
+    const pipeline = [
+      // Unwind tags array to get individual tags
+      { $unwind: '$tags' },
+      
+      // Match tags that start with the search query
+      // Since tags are stored lowercase, we can use exact match with regex
+      {
+        $match: {
+          tags: {
+            $regex: `^${sanitizedQuery}`,
+            $options: 'i' // Case-insensitive for safety
+          }
+        }
+      },
+      
+      // Group by tag and count occurrences
+      {
+        $group: {
+          _id: '$tags',
+          count: { $sum: 1 }
+        }
+      },
+      
+      // Rename _id to tag and format output
+      {
+        $project: {
+          _id: 0,
+          tag: '$_id',
+          count: 1
+        }
+      },
+      
+      // Sort by count descending (most popular first)
+      { $sort: { count: -1 } },
+      
+      // Optional: Limit results (default to 50)
+      { $limit: 50 }
+    ];
+
+    const tags = await Blog.aggregate(pipeline);
+
+    return sendSuccess(res, tags, `Found ${tags.length} tag(s) matching "${trimmedQuery}"`);
+  } catch (error) {
+    return sendError(res, 'Error searching tags', 500, error.message);
+  }
+};
+
 module.exports = {
   getAllBlogs,
   getBlogBySlug,
@@ -466,4 +532,5 @@ module.exports = {
   getMyBlogs,
   importBlogsFromCSV,
   updateBlog,
+  searchTags,
 };
