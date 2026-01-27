@@ -6,6 +6,7 @@ const blogSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Title is required'],
       trim: true,
+      minlength: [10, 'Title must be at least 10 characters'],
       maxlength: [200, 'Title cannot exceed 200 characters'],
     },
     slug: {
@@ -21,7 +22,9 @@ const blogSchema = new mongoose.Schema(
     },
     description: {
       type: String,
+      required: [true, 'Description is required'],
       trim: true,
+      minlength: [10, 'Description must be at least 10 characters'],
       maxlength: [5000, 'Description cannot exceed 5000 characters'],
     },
     cover_image: {
@@ -43,9 +46,16 @@ const blogSchema = new mongoose.Schema(
       default: [],
       validate: {
         validator: function (tags) {
-          return tags.length <= 10;
+          return tags.length <= 5;
         },
-        message: 'Cannot have more than 10 tags',
+        message: 'Cannot have more than 5 tags',
+      },
+      set: function (tags) {
+        // Normalize tags to lowercase when setting
+        if (Array.isArray(tags)) {
+          return tags.map((tag) => String(tag).toLowerCase().trim()).filter((tag) => tag.length > 0);
+        }
+        return tags;
       },
     },
     status: {

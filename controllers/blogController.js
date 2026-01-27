@@ -176,6 +176,7 @@ const importBlogsFromCSV = async (req, res) => {
       const validation = validateBlogData(row, {
         requireTitle: true,
         requireContent: true,
+        requireDescription: true, // Description is required for CSV import
       });
 
       // Collect validation errors with row number
@@ -349,6 +350,7 @@ const createBlog = async (req, res) => {
     const validation = validateBlogData(req.body, {
       requireTitle: true,
       requireContent: true,
+      requireDescription: true, // Description is required for blog creation
     });
 
     if (!validation.isValid) {
@@ -430,9 +432,9 @@ const getMyBlogs = async (req, res) => {
       query.status = status;
     }
 
-    // Fetch blogs
+    // Fetch blogs, ordered by updatedAt descending (most recently updated first)
     const blogs = await Blog.find(query)
-      .sort({ impression: -1, updatedAt: -1 })
+      .sort({ updatedAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
       .select('-__v -description -content -cover_image -user_id -tags -status');

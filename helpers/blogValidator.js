@@ -11,8 +11,13 @@ const validateTitle = (title, isRequired = true) => {
     
     if (isRequired && (!title || title.trim() === '')) {
       errors.push('Title is required');
-    } else if (title && title.trim().length > 200) {
-      errors.push('Title cannot exceed 200 characters');
+    } else if (title) {
+      const trimmedTitle = title.trim();
+      if (trimmedTitle.length < 10) {
+        errors.push('Title must be at least 10 characters');
+      } else if (trimmedTitle.length > 200) {
+        errors.push('Title cannot exceed 200 characters');
+      }
     }
     
     return { isValid: errors.length === 0, errors, value: title ? title.trim() : null };
@@ -34,11 +39,18 @@ const validateTitle = (title, isRequired = true) => {
   /**
    * Validate description
    */
-  const validateDescription = (description) => {
+  const validateDescription = (description, isRequired = false) => {
     const errors = [];
     
-    if (description && description.trim().length > 5000) {
-      errors.push('Description cannot exceed 5000 characters');
+    if (isRequired && (!description || description.trim() === '')) {
+      errors.push('Description is required');
+    } else if (description) {
+      const trimmedDesc = description.trim();
+      if (trimmedDesc.length < 10) {
+        errors.push('Description must be at least 10 characters');
+      } else if (trimmedDesc.length > 5000) {
+        errors.push('Description cannot exceed 5000 characters');
+      }
     }
     
     return { isValid: errors.length === 0, errors, value: description ? description.trim() : null };
@@ -69,11 +81,23 @@ const validateTitle = (title, isRequired = true) => {
       return { isValid: false, errors, value: [] };
     }
     
-    if (tagArray.length > 10) {
-      errors.push('Cannot have more than 10 tags');
+    // Remove duplicate tags and normalize to lowercase
+    const uniqueTags = [];
+    const seenTags = new Set();
+    
+    for (const tag of tagArray) {
+      const normalizedTag = tag.toLowerCase();
+      if (!seenTags.has(normalizedTag)) {
+        seenTags.add(normalizedTag);
+        uniqueTags.push(normalizedTag); // Store as lowercase for consistency
+      }
     }
     
-    return { isValid: errors.length === 0, errors, value: tagArray };
+    if (uniqueTags.length > 5) {
+      errors.push('Cannot have more than 5 tags');
+    }
+    
+    return { isValid: errors.length === 0, errors, value: uniqueTags };
   };
   
   /**
@@ -107,7 +131,7 @@ const validateTitle = (title, isRequired = true) => {
    * Validate blog data (for create/update)
    */
   const validateBlogData = (data, options = {}) => {
-    const { requireTitle = true, requireContent = true } = options;
+    const { requireTitle = true, requireContent = true, requireDescription = false } = options;
     const errors = [];
     const validatedData = {};
     
@@ -122,8 +146,8 @@ const validateTitle = (title, isRequired = true) => {
     if (contentResult.value) validatedData.content = contentResult.value;
     
     // Validate description
-    if (data.description !== undefined) {
-      const descResult = validateDescription(data.description);
+    if (data.description !== undefined || requireDescription) {
+      const descResult = validateDescription(data.description, requireDescription);
       if (!descResult.isValid) errors.push(...descResult.errors);
       if (descResult.value !== null) validatedData.description = descResult.value;
     }

@@ -39,6 +39,7 @@ const sanitizeSlug = (slug) => {
 
 /**
  * Sanitize array of strings (for tags)
+ * Removes duplicates (case-insensitive) and limits to 5 items
  */
 const sanitizeStringArray = (input) => {
   if (!input) return [];
@@ -47,15 +48,28 @@ const sanitizeStringArray = (input) => {
   }
   if (!Array.isArray(input)) return [];
   
-  return input
+  const sanitized = input
     .map((item) => {
       if (typeof item === 'string') {
         return sanitizeString(item.trim());
       }
       return sanitizeString(String(item).trim());
     })
-    .filter((item) => item.length > 0)
-    .slice(0, 10); // Limit to 10 items
+    .filter((item) => item.length > 0);
+  
+  // Remove duplicates (case-insensitive)
+  const uniqueItems = [];
+  const seenItems = new Set();
+  
+  for (const item of sanitized) {
+    const lowerItem = item.toLowerCase();
+    if (!seenItems.has(lowerItem)) {
+      seenItems.add(lowerItem);
+      uniqueItems.push(item);
+    }
+  }
+  
+  return uniqueItems.slice(0, 5); // Limit to 5 items
 };
 
 /**
