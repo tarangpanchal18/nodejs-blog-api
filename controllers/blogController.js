@@ -24,42 +24,32 @@ const getAllBlogs = async (req, res) => {
   try {
     const defaultLimit = Number(process.env.PAGINATION_LIMIT) || 10;
 
-    let {
-      page = 1,
-      limit = defaultLimit,
-      tag,
-      status,
-      search,
-    } = req.query;
+    // Sanitize pagination
+    const { page, limit } = sanitizePagination(req.query.page, req.query.limit || defaultLimit);
 
-    page = Math.max(parseInt(page) || 1, 1);
-    limit = Math.max(parseInt(limit) || defaultLimit, 1);
+    // Sanitize search input (escape regex special characters)
+    const search = req.query.search ? escapeRegex(req.query.search.trim()) : null;
+    
+    // Sanitize status (only allow 'draft' or 'published')
+    const status = sanitizeStatus(req.query.status) || 'published';
+    
+    // Sanitize tags
+    const tagArray = req.query.tag ? sanitizeStringArray(req.query.tag) : null;
 
     const query = {};
 
-    if (search && search.trim()) {
+    if (search) {
       query.title = {
-        $regex: search.trim(),
+        $regex: search,
         $options: 'i', // case-insensitive
       };
     }
 
-    if (tag) {
-      const tagArray = tag
-        .split(',')
-        .map(t => t.trim())
-        .filter(Boolean);
-
-      if (tagArray.length) {
-        query.tags = { $in: tagArray };
-      }
+    if (tagArray && tagArray.length > 0) {
+      query.tags = { $in: tagArray };
     }
 
-    if (status) {
-      query.status = status;
-    } else {
-      query.status = 'published';
-    }
+    query.status = status;
 
     const [blogs, total] = await Promise.all([
       Blog.find(query)
@@ -71,7 +61,7 @@ const getAllBlogs = async (req, res) => {
       Blog.countDocuments(query),
     ]);
 
-    const pagination = {
+    const paginationInfo = {
       page,
       limit,
       total,
@@ -81,7 +71,7 @@ const getAllBlogs = async (req, res) => {
     return sendSuccessWithPagination(
       res,
       blogs,
-      pagination,
+      paginationInfo,
       'Blogs fetched successfully'
     );
   } catch (error) {
@@ -96,7 +86,13 @@ const getAllBlogs = async (req, res) => {
 
 const getBlogBySlug = async (req, res) => {
   try {
-    const blog = await Blog.findOne({ slug: req.params.slug })
+    // Sanitize slug to prevent injection
+    const slug = sanitizeSlug(req.params.slug);
+    if (!slug) {
+      return sendNotFound(res, 'Blog not found');
+    }
+
+    const blog = await Blog.findOne({ slug })
       .populate('user_id', 'name email username avatar bio')
       .select('-__v');
 
@@ -273,7 +269,11 @@ const importBlogsFromCSV = async (req, res) => {
  */
 const updateBlog = async (req, res) => {
   try {
-    const { slug } = req.params;
+    // Sanitize slug to prevent injection
+    const slug = sanitizeSlug(req.params.slug);
+    if (!slug) {
+      return sendNotFound(res, 'Blog not found');
+    }
 
     // Find the blog
     const blog = await Blog.findOne({ slug });
@@ -387,15 +387,18 @@ const createBlog = async (req, res) => {
 const getMyBlogs = async (req, res) => {
   try {
     const defaultLimit = Number(process.env.PAGINATION_LIMIT) || 10;
-    let { page = 1, limit = defaultLimit, tag, status, search } = req.query;
 
-    // Ensure page is at least 1
-    page = parseInt(page);
-    if (!page || page < 1) {
-      page = 1;
-    }
+    // Sanitize pagination
+    const { page, limit } = sanitizePagination(req.query.page, req.query.limit || defaultLimit);
 
-    limit = parseInt(limit);
+    // Sanitize search input (escape regex special characters)
+    const search = req.query.search ? escapeRegex(req.query.search.trim()) : null;
+    
+    // Sanitize status (only allow 'draft' or 'published')
+    const status = req.query.status ? sanitizeStatus(req.query.status) : null;
+    
+    // Sanitize tags
+    const tagArray = req.query.tag ? sanitizeStringArray(req.query.tag) : null;
 
     // Build query - filter by logged-in user's ID
     const query = {
@@ -403,16 +406,15 @@ const getMyBlogs = async (req, res) => {
     };
 
     // Filter by title if provided
-    if (search && search.trim()) {
+    if (search) {
       query.title = {
-        $regex: search.trim(),
+        $regex: search,
         $options: 'i', // case-insensitive
       };
     }
     
     // Filter by tag if provided
-    if (tag) {
-      const tagArray = tag.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
+    if (tagArray && tagArray.length > 0) {
       query.tags = { $in: tagArray };
     }
 
@@ -430,9 +432,9 @@ const getMyBlogs = async (req, res) => {
 
     const total = await Blog.countDocuments(query);
 
-    const pagination = {
-      page: parseInt(page),
-      limit: parseInt(limit),
+    const paginationInfo = {
+      page,
+      limit,
       total,
       pages: Math.ceil(total / limit),
     };
@@ -440,7 +442,7 @@ const getMyBlogs = async (req, res) => {
     return sendSuccessWithPagination(
       res,
       blogs,
-      pagination,
+      paginationInfo,
       'Your blogs fetched successfully'
     );
   } catch (error) {
