@@ -111,7 +111,7 @@ const getBlogBySlug = async (req, res) => {
     // 🔥 emit event on every x views
     const viewsThreshold = parseInt(process.env.BLOG_VIEWS_EMAIL_THRESHOLD, 10);
     if (blog.impression % viewsThreshold === 0) {
-      blogEvents.emit('viewsThreshold', blog);
+      blogEvents.emit('viewsThreshold', { blog, user: blog.user_id });
     }
 
     return sendSuccess(res, blog, 'Blog fetched successfully');
