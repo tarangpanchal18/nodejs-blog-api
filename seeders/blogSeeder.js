@@ -1,5 +1,6 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
+const bcrypt = require('bcrypt');
 // Import User first to ensure it's registered before Blog references it
 const User = require('../models/User');
 const Blog = require('../models/Blog');
@@ -23,6 +24,7 @@ const userData = [
     name: 'John Doe',
     email: 'john.doe@example.com',
     username: 'johndoe',
+    password: bcrypt.hashSync('Test105*', 10),
     bio: 'Full-stack developer passionate about Node.js and web technologies.',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200',
   },

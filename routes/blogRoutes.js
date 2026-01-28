@@ -3,6 +3,7 @@ const router = express.Router();
 const blogController = require('../controllers/blogController');
 const upload = require('../middleware/upload');
 const authenticate = require('../middleware/auth');
+const draftBlogView = require('../middleware/draftBlogView');
 
 // Public routes
 router.get('/', blogController.getAllBlogs);
@@ -15,7 +16,7 @@ router.post('/import', authenticate, upload.single('file'), blogController.impor
 router.post('/', authenticate, blogController.createBlog);
 
 // Parameterized routes (must come after specific routes)
-router.get('/:slug', blogController.getBlogBySlug);
+router.get('/:slug', draftBlogView, blogController.getBlogBySlug);
 router.put('/:slug', authenticate, blogController.updateBlog);
 
 

@@ -31,42 +31,100 @@ const getAllBlogs = async (req, res) => {
   try {
     const defaultLimit = Number(process.env.PAGINATION_LIMIT) || 10;
 
-    // Sanitize pagination
     const { page, limit } = sanitizePagination(req.query.page, req.query.limit || defaultLimit);
-
-    // Sanitize search input (escape regex special characters)
     const search = req.query.search ? escapeRegex(req.query.search.trim()) : null;
-    
-    // Sanitize status (only allow 'draft' or 'published')
-    const status = sanitizeStatus(req.query.status) || 'published';
-    
-    // Sanitize tags
+    // const status = sanitizeStatus(req.query.status) || 'published';
+    const status = 'published';
     const tagArray = req.query.tag ? sanitizeStringArray(req.query.tag) : null;
-
-    const query = {};
+    const query = { status };
 
     if (search) {
-      query.title = {
-        $regex: search,
-        $options: 'i', // case-insensitive
-      };
+      query.title = { $regex: search, $options: 'i' };
     }
 
-    if (tagArray && tagArray.length > 0) {
+    if (tagArray?.length) {
       query.tags = { $in: tagArray };
     }
 
-    query.status = status;
+    // Fetch popular blogs
+    const popularBlogs = await Blog.find(query)
+      .populate('user_id', 'name avatar')
+      .sort({ impression: -1, updatedAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .select('-__v -content');
 
-    const [blogs, total] = await Promise.all([
-      Blog.find(query)
-        .sort({ impression: -1, updatedAt: -1 })
-        .skip((page - 1) * limit)
-        .limit(limit)
-        .select('-__v -description -content -cover_image -user_id'),
+    // Fetch new blogs (last 72h)
+    const now = new Date();
+    const seventyTwoHoursAgo = new Date(now.getTime() - 72 * 60 * 60 * 1000);
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-      Blog.countDocuments(query),
-    ]);
+    const newBlogs = await Blog.find({
+      status,
+      createdAt: { $gte: seventyTwoHoursAgo },
+      _id: { $nin: popularBlogs.map(b => b._id) },
+    })
+      .populate('user_id', 'name avatar')
+      .sort({ createdAt: -1 })
+      .select('-__v -content');
+
+    // Split into buckets
+    const todayBlogs = [];
+    const recentBlogs = [];
+
+    newBlogs.forEach(blog => {
+      if (blog.createdAt >= twentyFourHoursAgo) {
+        todayBlogs.push(blog);
+      } else {
+        recentBlogs.push(blog);
+      }
+    });
+
+    // Pick boosted blogs
+    const boosted = [];
+
+    // Slot 2 → today blog first, fallback to recent
+    if (todayBlogs.length) {
+      boosted.push(todayBlogs.shift());
+    } else if (recentBlogs.length) {
+      boosted.push(recentBlogs.shift());
+    }
+
+    // Remaining pool for slot 3 & 4
+    const remainingNewBlogs = [...todayBlogs, ...recentBlogs];
+
+    // Shuffle remaining (controlled randomness)
+    for (let i = remainingNewBlogs.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [remainingNewBlogs[i], remainingNewBlogs[j]] = [
+        remainingNewBlogs[j],
+        remainingNewBlogs[i],
+      ];
+    }
+
+    if (remainingNewBlogs[0]) boosted.push(remainingNewBlogs[0]);
+    if (remainingNewBlogs[1]) boosted.push(remainingNewBlogs[1]);
+
+    // Inject into list
+    const finalBlogs = [];
+    let boostIndex = 0;
+
+    popularBlogs.forEach((blog, index) => {
+      // Inject at 2nd, 3rd, 4th positions
+      if (index >= 1 && index <= 3 && boosted[boostIndex]) {
+        finalBlogs.push({
+          ...boosted[boostIndex].toObject(),
+          isBoosted: true,
+          boostType: 'new',
+        });
+        boostIndex++;
+      }
+
+      finalBlogs.push(blog);
+    });
+
+    // Pagination info
+    const total = await Blog.countDocuments(query);
 
     const paginationInfo = {
       page,
@@ -77,7 +135,7 @@ const getAllBlogs = async (req, res) => {
 
     return sendSuccessWithPagination(
       res,
-      blogs,
+      finalBlogs,
       paginationInfo,
       'Blogs fetched successfully'
     );
@@ -93,12 +151,12 @@ const getAllBlogs = async (req, res) => {
 
 const getBlogBySlug = async (req, res) => {
   try {
-    // Sanitize slug to prevent injection
     const slug = sanitizeSlug(req.params.slug);
     if (!slug) {
       return sendNotFound(res, 'Blog not found');
     }
 
+    // Fetch blog WITHOUT status filter
     const blog = await Blog.findOne({ slug })
       .populate('user_id', 'name email username avatar bio')
       .select('-__v');
@@ -107,11 +165,18 @@ const getBlogBySlug = async (req, res) => {
       return sendNotFound(res, 'Blog not found');
     }
 
-    // increment views
+    const isOwner =
+      req.userId &&
+      blog.user_id &&
+      blog.user_id._id.toString() === req.userId;
+
+    if (!isOwner && blog.status !== 'published') {
+      return sendNotFound(res, 'Blog not found');
+    }
+
     blog.impression += 1;
     await blog.save();
 
-    // 🔥 emit event on every x views
     const viewsThreshold = parseInt(process.env.BLOG_VIEWS_EMAIL_THRESHOLD, 10);
     if (blog.impression % viewsThreshold === 0) {
       blogEvents.emit('viewsThreshold', { blog, user: blog.user_id });
@@ -396,23 +461,12 @@ const createBlog = async (req, res) => {
 const getMyBlogs = async (req, res) => {
   try {
     const defaultLimit = Number(process.env.PAGINATION_LIMIT) || 10;
-
-    // Sanitize pagination
     const { page, limit } = sanitizePagination(req.query.page, req.query.limit || defaultLimit);
-
-    // Sanitize search input (escape regex special characters)
     const search = req.query.search ? escapeRegex(req.query.search.trim()) : null;
-    
-    // Sanitize status (only allow 'draft' or 'published')
     const status = req.query.status ? sanitizeStatus(req.query.status) : null;
-    
-    // Sanitize tags
     const tagArray = req.query.tag ? sanitizeStringArray(req.query.tag) : null;
 
-    // Build query - filter by logged-in user's ID
-    const query = {
-      user_id: req.userId, // Only blogs created by the authenticated user
-    };
+    const query = {user_id: req.userId,};
 
     // Filter by title if provided
     if (search) {
@@ -437,7 +491,7 @@ const getMyBlogs = async (req, res) => {
       .sort({ updatedAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
-      .select('-__v -description -content -cover_image -user_id -tags -status');
+      .select('-__v -description -content -cover_image -user_id -tags');
 
     const total = await Blog.countDocuments(query);
 
