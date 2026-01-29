@@ -21,9 +21,11 @@ const sanitizeString = (input) => {
 
 /**
  * Validate and sanitize status value
+ * User-facing statuses: 'draft', 'published'
+ * Internal statuses: 'draft', 'pending_approval', 'published', 'rejected'
  */
 const sanitizeStatus = (status) => {
-  const allowedStatuses = ['draft', 'published'];
+  const allowedStatuses = ['draft', 'published', 'pending_approval', 'rejected'];
   if (!status || typeof status !== 'string') return null;
   const normalizedStatus = status.toLowerCase().trim();
   return allowedStatuses.includes(normalizedStatus) ? normalizedStatus : null;

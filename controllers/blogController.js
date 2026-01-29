@@ -388,12 +388,25 @@ const updateBlog = async (req, res) => {
       validation.data.slug = newSlug;
     }
 
+    // Moderation flow: if status is 'published', save as 'pending_approval'
+    // Draft blogs are saved as-is
+    const wasPendingApproval = blog.status === 'pending_approval';
+    if (validation.data.status === 'published') {
+      validation.data.status = 'pending_approval';
+    }
+
     // Update the blog
     Object.assign(blog, validation.data);
     await blog.save();
 
     // Populate user data
     await blog.populate('user_id', 'name email username avatar bio');
+
+    // Trigger moderation event if blog is now pending approval (non-blocking)
+    // Only trigger if status changed to pending_approval (not if it was already pending)
+    if (blog.status === 'pending_approval' && !wasPendingApproval) {
+      blogEvents.emit('blogModeration', { blog });
+    }
 
     return sendSuccess(res, blog, 'Blog updated successfully');
   } catch (error) {
@@ -438,11 +451,22 @@ const createBlog = async (req, res) => {
       user_id: req.userId, // Use authenticated user's ID
     };
 
+    // Moderation flow: if status is 'published', save as 'pending_approval'
+    // Draft blogs are saved as-is
+    if (blogData.status === 'published') {
+      blogData.status = 'pending_approval';
+    }
+
     // Create blog
     const blog = await Blog.create(blogData);
 
     // Populate user data
     await blog.populate('user_id', 'name email username avatar bio');
+
+    // Trigger moderation event if blog is pending approval (non-blocking)
+    if (blog.status === 'pending_approval') {
+      blogEvents.emit('blogModeration', { blog });
+    }
 
     return sendSuccess(res, blog, 'Blog created successfully', 201);
   } catch (error) {

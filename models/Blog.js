@@ -60,9 +60,14 @@ const blogSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['draft', 'published'],
-      default: 'published',
+      enum: ['draft', 'published', 'pending_approval', 'rejected'],
+      default: 'draft',
     },
+    
+    rejectionReason: {
+      type: String,
+      default: null
+    }
   },
   {
     timestamps: true, // This automatically adds createdAt and updatedAt

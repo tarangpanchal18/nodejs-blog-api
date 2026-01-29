@@ -102,12 +102,19 @@ const validateTitle = (title, isRequired = true) => {
   
   /**
    * Validate status
+   * User-facing: 'draft', 'published'
+   * Internal: 'draft', 'pending_approval', 'published', 'rejected'
    */
   const validateStatus = (status) => {
     const errors = [];
+    const userFacingStatuses = ['draft', 'published'];
+    const allStatuses = ['draft', 'published', 'pending_approval', 'rejected'];
     
-    if (status !== undefined && !['draft', 'published'].includes(status.toLowerCase())) {
-      errors.push('Status must be either "draft" or "published"');
+    if (status !== undefined) {
+      const normalizedStatus = status.toLowerCase();
+      if (!allStatuses.includes(normalizedStatus)) {
+        errors.push('Status must be either "draft" or "published"');
+      }
     }
     
     return { 
