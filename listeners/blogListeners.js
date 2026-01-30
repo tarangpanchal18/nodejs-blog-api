@@ -42,7 +42,7 @@ blogEvents.on('blogModeration', async ({ blog }) => {
 
     // Only process if still pending approval
     if (freshBlog.status !== 'pending_approval') {
-      console.log(`🔄 Blog ${freshBlog.slug} status is ${freshBlog.status}, skipping moderation`);
+      console.log(`🔄 Blog ${freshBlog._id} status is ${freshBlog.status}, skipping moderation`);
       return;
     }
 
@@ -51,7 +51,7 @@ blogEvents.on('blogModeration', async ({ blog }) => {
 
     if (isSafe) {
       freshBlog.status = 'published';
-      console.log(`✅ Blog ${freshBlog.slug} approved`);
+      console.log(`✅ Blog ${freshBlog._id} approved`);
     } else {
       freshBlog.status = 'rejected';
       freshBlog.rejectionReason = reason;
