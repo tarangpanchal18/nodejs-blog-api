@@ -53,7 +53,14 @@ npm start
 npm run seed
 ```
 
+**Create an admin user** (to access admin panel):
+```bash
+node scripts/createAdminUser.js
+```
+
 The server will start on `http://localhost:3000` (or whatever PORT you set in `.env`)
+
+**Access the admin panel** at `http://localhost:3000/admin` (requires admin user)
 
 ## 📚 API Endpoints
 
@@ -71,6 +78,21 @@ The server will start on `http://localhost:3000` (or whatever PORT you set in `.
 - `POST /blog` - Create a new blog
 - `PUT /blog/:slug` - Update your blog
 - `POST /blog/import` - Import blogs from CSV
+
+### Admin Panel (require JWT token + isAdmin: true)
+- `GET /admin` - Admin dashboard with statistics
+- `GET /admin/users` - Manage all users
+- `PATCH /admin/users/:id` - Toggle user active/inactive status
+- `GET /admin/blogs` - Manage all blogs
+- `PATCH /admin/blogs/:id` - Change blog status
+- `DELETE /admin/blogs/:id` - Delete a blog
+
+**🔐 Admin Panel Features:**
+- Beautiful Bootstrap 5 UI
+- User management (activate/deactivate users)
+- Blog management (change status, delete blogs)
+- Real-time statistics dashboard
+- See full documentation: [ADMIN_PANEL_README.md](./ADMIN_PANEL_README.md)
 
 ## 🎯 Quick Start Example
 
@@ -113,6 +135,8 @@ The server will start on `http://localhost:3000` (or whatever PORT you set in `.
 - **bcrypt** - Password hashing
 - **Multer** - File uploads
 - **express-rate-limit** - Rate limiting
+- **EJS** - Template engine (for admin panel)
+- **Bootstrap 5** - CSS framework (for admin panel UI)
 
 ## 🤝 Contributing & Usage
 

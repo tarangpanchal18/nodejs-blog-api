@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const connectDB = require('./config/db');
 
 // Import models to ensure they're registered before routes use them
@@ -10,6 +11,7 @@ require('./models/Blog');
 // Import routes
 const blogRoutes = require('./routes/blogRoutes');
 const authRoutes = require('./routes/authRoutes');
+const adminRoutes = require('./routes/adminRoutes');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -21,6 +23,11 @@ const app = express();
 
 // Connect to MongoDB
 connectDB();
+
+// ==================== View Engine Setup ====================
+// Set EJS as the template engine for admin panel
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 
 // ==================== Middleware ====================
 app.use(cors());
@@ -39,6 +46,9 @@ app.get('/', (req, res) => {
 // API routes
 app.use('/auth', authRoutes);
 app.use('/blog', blogRoutes);
+
+// Admin panel routes (renders HTML pages with EJS)
+app.use('/admin', adminRoutes);
 
 
 // ==================== Event Listeners ====================
