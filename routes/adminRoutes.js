@@ -5,11 +5,22 @@ const adminAuth = require('../middleware/adminAuth');
 
 /**
  * Admin Routes
- * All routes are protected by adminAuth middleware
- * Only users with isAdmin: true can access these routes
+ * Public routes (login) are not protected
+ * All other routes are protected by adminAuth middleware
+ * Only users with isAdmin: true can access protected routes
  */
 
-// Apply admin authentication middleware to all routes
+/**
+ * Public Routes (No Authentication Required)
+ */
+router.get('/login', adminController.getLogin);
+router.post('/login', adminController.postLogin);
+router.get('/logout', adminController.logout);
+
+/**
+ * Protected Routes (Authentication Required)
+ * Apply admin authentication middleware to all routes below
+ */
 router.use(adminAuth);
 
 /**
@@ -17,28 +28,10 @@ router.use(adminAuth);
  * GET /admin
  */
 router.get('/', adminController.getDashboard);
-
-/**
- * User Management Routes
- */
-
-// GET /admin/users - Display all users
 router.get('/users', adminController.getUsers);
-
-// PATCH /admin/users/:id - Toggle user active/inactive status
 router.patch('/users/:id', adminController.toggleUserStatus);
-
-/**
- * Blog Management Routes
- */
-
-// GET /admin/blogs - Display all blogs
 router.get('/blogs', adminController.getBlogs);
-
-// PATCH /admin/blogs/:id - Toggle blog status or update to specific status
 router.patch('/blogs/:id', adminController.toggleBlogStatus);
-
-// DELETE /admin/blogs/:id - Delete a blog (optional feature)
 router.delete('/blogs/:id', adminController.deleteBlog);
 
 module.exports = router;

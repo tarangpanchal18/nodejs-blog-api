@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Login - Admin Panel</title>
+  
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+  
+  <style>
+    body {
+      min-height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .login-card {
+      max-width: 450px;
+      width: 100%;
+      border-radius: 15px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+    }
+    
+    .login-header {
+      background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+      color: white;
+      padding: 2rem;
+      border-radius: 15px 15px 0 0;
+      text-align: center;
+    }
+    
+    .login-header i {
+      font-size: 3rem;
+      margin-bottom: 1rem;
+    }
+    
+    .login-body {
+      padding: 2rem;
+    }
+    
+    .form-control:focus {
+      border-color: #667eea;
+      box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+    }
+    
+    .btn-login {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border: none;
+      padding: 0.75rem;
+      font-weight: 600;
+      transition: transform 0.3s ease;
+    }
+    
+    .btn-login:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+    
+    .input-group-text {
+      background-color: #f8f9fa;
+      border-right: none;
+    }
+    
+    .form-control {
+      border-left: none;
+    }
+    
+    .form-control:focus + .input-group-text {
+      border-color: #667eea;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="row justify-content-center">
+      <div class="col-12">
+        <div class="card login-card">
+          <div class="login-header">
+            <i class="bi bi-shield-lock"></i>
+            <h2 class="mb-0">Admin Panel</h2>
+            <p class="mb-0 small">Please login to continue</p>
+          </div>
+          
+          <div class="login-body bg-white">
+            <!-- Alert messages -->
+            <div id="alert-container"></div>
+            
+            <% if (typeof error !== 'undefined' && error) { %>
+              <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                <i class="bi bi-exclamation-triangle"></i> <%= error %>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+              </div>
+            <% } %>
+            
+            <% if (typeof success !== 'undefined' && success) { %>
+              <div class="alert alert-success alert-dismissible fade show" role="alert">
+                <i class="bi bi-check-circle"></i> <%= success %>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+              </div>
+            <% } %>
+            
+            <form id="loginForm">
+              <!-- Email Field -->
+              <div class="mb-3">
+                <label for="email" class="form-label">Email Address</label>
+                <div class="input-group">
+                  <span class="input-group-text">
+                    <i class="bi bi-envelope"></i>
+                  </span>
+                  <input 
+                    type="email" 
+                    class="form-control" 
+                    id="email" 
+                    name="email"
+                    placeholder="admin@example.com"
+                    required
+                    autocomplete="email"
+                  >
+                </div>
+              </div>
+              
+              <!-- Password Field -->
+              <div class="mb-4">
+                <label for="password" class="form-label">Password</label>
+                <div class="input-group">
+                  <span class="input-group-text">
+                    <i class="bi bi-lock"></i>
+                  </span>
+                  <input 
+                    type="password" 
+                    class="form-control" 
+                    id="password" 
+                    name="password"
+                    placeholder="Enter your password"
+                    required
+                    autocomplete="current-password"
+                  >
+                </div>
+              </div>
+              
+              <!-- Submit Button -->
+              <button type="submit" class="btn btn-primary btn-login w-100" id="loginBtn">
+                <i class="bi bi-box-arrow-in-right"></i> Login to Admin Panel
+              </button>
+            </form>
+            
+            <!-- Info Box -->
+            <div class="mt-4 p-3 bg-light rounded">
+              <small class="text-muted">
+                <i class="bi bi-info-circle"></i> 
+                <strong>Note:</strong> Only users with admin privileges can access the admin panel.
+              </small>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Back to Home Link -->
+        <div class="text-center mt-3">
+          <a href="/" class="text-white text-decoration-none">
+            <i class="bi bi-arrow-left"></i> Back to Home
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bootstrap 5 JS Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <script>
+    const loginForm = document.getElementById('loginForm');
+    const loginBtn = document.getElementById('loginBtn');
+    const alertContainer = document.getElementById('alert-container');
+    
+    loginForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+      
+      // Disable button and show loading
+      loginBtn.disabled = true;
+      loginBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span> Logging in...';
+      
+      try {
+        const response = await fetch('/admin/login', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ email, password }),
+          credentials: 'include' // Important: include cookies in request
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          // Store token in localStorage as backup
+          if (data.token) {
+            localStorage.setItem('token', data.token);
+          }
+          
+          // Show success message
+          showAlert('success', 'Login successful! Redirecting to admin panel...');
+          
+          // Redirect to admin dashboard (cookie will be sent automatically)
+          setTimeout(() => {
+            window.location.href = '/admin';
+          }, 1000);
+        } else {
+          throw new Error(data.message || 'Login failed');
+        }
+      } catch (error) {
+        console.error('Login error:', error);
+        showAlert('danger', error.message || 'Invalid email or password. Please try again.');
+        
+        // Re-enable button
+        loginBtn.disabled = false;
+        loginBtn.innerHTML = '<i class="bi bi-box-arrow-in-right"></i> Login to Admin Panel';
+      }
+    });
+    
+    function showAlert(type, message) {
+      const alertHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          <i class="bi ${type === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle'}"></i>
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      `;
+      
+      alertContainer.innerHTML = alertHTML;
+      
+      // Auto-dismiss after 5 seconds
+      setTimeout(() => {
+        const alert = alertContainer.querySelector('.alert');
+        if (alert) {
+          const bsAlert = new bootstrap.Alert(alert);
+          bsAlert.close();
+        }
+      }, 5000);
+    }
+  </script>
+</body>
+</html>

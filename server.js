@@ -2,6 +2,7 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const cookieParser = require('cookie-parser');
 const connectDB = require('./config/db');
 
 // Import models to ensure they're registered before routes use them
@@ -33,6 +34,7 @@ app.set('views', path.join(__dirname, 'views'));
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser()); // Parse cookies for admin panel sessions
 
 // Apply rate limiting to all API routes
 app.use('/blog', apiLimiter);

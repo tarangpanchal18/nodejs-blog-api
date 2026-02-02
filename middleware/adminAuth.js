@@ -10,28 +10,33 @@ const User = require('../models/User');
  */
 const adminAuth = async (req, res, next) => {
   try {
-    // Check for token in multiple places (header, cookie, or query for flexibility)
+    // Check for token in multiple places (cookie, header, or query for flexibility)
     let token;
     
-    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+    // Priority 1: Cookie (for admin panel persistent sessions)
+    if (req.cookies && req.cookies.adminToken) {
+      token = req.cookies.adminToken;
+    }
+    // Priority 2: Authorization header (for API requests)
+    else if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
       token = req.headers.authorization.split(' ')[1];
-    } else if (req.cookies && req.cookies.token) {
-      // If you use cookies for admin panel
-      token = req.cookies.token;
-    } else if (req.query.token) {
-      // Fallback to query parameter
+    }
+    // Priority 3: Query parameter (fallback for initial redirect)
+    else if (req.query.token) {
       token = req.query.token;
     }
 
     // Check if token exists
     if (!token) {
-      // For HTML pages, redirect to login
-      if (req.path.startsWith('/admin') && !req.xhr && !req.is('json')) {
-        return res.status(401).render('admin/login', {
-          error: 'Please login to access the admin panel',
-          layout: false
-        });
+      // For HTML pages (browser requests), redirect to login page
+      const acceptHeader = req.headers.accept || '';
+      const isHtmlRequest = acceptHeader.includes('text/html');
+      
+      if (isHtmlRequest) {
+        return res.redirect('/admin/login?error=Please login to access the admin panel');
       }
+      
+      // For API requests (AJAX), return JSON
       return res.status(401).json({
         success: false,
         message: 'Not authorized to access this route - No token provided'

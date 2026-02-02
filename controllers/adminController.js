@@ -1,10 +1,119 @@
 const User = require('../models/User');
 const Blog = require('../models/Blog');
+const jwt = require('jsonwebtoken');
 
 /**
  * Admin Controller
  * Handles all admin panel operations including user management and blog management
  */
+
+/**
+ * Render admin login page
+ * GET /admin/login
+ */
+exports.getLogin = (req, res) => {
+  res.render('admin/login', {
+    error: req.query.error || null,
+    success: req.query.success || null
+  });
+};
+
+/**
+ * Handle admin login
+ * POST /admin/login
+ */
+exports.postLogin = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate input
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Please provide email and password'
+      });
+    }
+
+    // Find user and include password field
+    const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    // Check if password matches
+    const isPasswordCorrect = await user.comparePassword(password);
+
+    if (!isPasswordCorrect) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid email or password'
+      });
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      return res.status(403).json({
+        success: false,
+        message: 'Your account has been deactivated. Please contact support.'
+      });
+    }
+
+    // Check if user is admin
+    if (!user.isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Access denied. Admin privileges required.'
+      });
+    }
+
+    // Generate JWT token
+    const token = jwt.sign(
+      { id: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    );
+
+    // Set cookie with token (HttpOnly for security)
+    res.cookie('adminToken', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production', // Use secure cookies in production
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      sameSite: 'strict'
+    });
+
+    // Return success response
+    res.json({
+      success: true,
+      message: 'Login successful',
+      token, // Also return token for localStorage fallback
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        isAdmin: user.isAdmin
+      }
+    });
+  } catch (error) {
+    console.error('Admin login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during login'
+    });
+  }
+};
+
+/**
+ * Handle admin logout
+ * GET /admin/logout
+ */
+exports.logout = (req, res) => {
+  res.clearCookie('adminToken');
+  res.redirect('/admin/login?success=Logged out successfully');
+};
 
 /**
  * Render admin dashboard home page
