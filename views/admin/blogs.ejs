@@ -281,6 +281,27 @@
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
   
   <script>
+    // Security: Prevent access to cached pages after logout
+    window.addEventListener('pageshow', function(event) {
+      // If page is loaded from cache (back/forward button)
+      if (event.persisted || (window.performance && window.performance.navigation.type === 2)) {
+        // Force reload from server (not cache)
+        window.location.reload();
+      }
+    });
+    
+    // Security: Verify authentication on page load
+    (function checkAuth() {
+      // Check if we have a cookie by making a simple test request
+      fetch('/admin', {
+        method: 'HEAD',
+        credentials: 'include'
+      }).catch(() => {
+        // If request fails, redirect to login
+        window.location.replace('/admin/login?error=Session expired. Please login again.');
+      });
+    })();
+    
     // Auto-dismiss alerts after 5 seconds
     setTimeout(() => {
       const alerts = document.querySelectorAll('.alert');
@@ -305,8 +326,15 @@
               'Authorization': `Bearer ${localStorage.getItem('token')}`
             })
           },
+          credentials: 'include', // Important: include cookies
           body: JSON.stringify({ status: newStatus })
         });
+        
+        // Check if unauthorized (session expired)
+        if (response.status === 401 || response.status === 403) {
+          window.location.replace('/admin/login?error=Session expired. Please login again.');
+          return;
+        }
         
         const data = await response.json();
         
@@ -360,8 +388,15 @@
             ...(localStorage.getItem('token') && {
               'Authorization': `Bearer ${localStorage.getItem('token')}`
             })
-          }
+          },
+          credentials: 'include' // Important: include cookies
         });
+        
+        // Check if unauthorized (session expired)
+        if (response.status === 401 || response.status === 403) {
+          window.location.replace('/admin/login?error=Session expired. Please login again.');
+          return;
+        }
         
         const data = await response.json();
         

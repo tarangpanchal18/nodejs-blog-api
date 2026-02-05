@@ -70,7 +70,7 @@ The server will start on `http://localhost:3000` (or whatever PORT you set in `.
 - `GET /blog/:slug` - Get a single blog by slug
 
 ### Authentication Endpoints
-- `POST /auth/register` - Register a new user
+- `POST /auth/register` - Register a new user (sends welcome email 📧)
 - `POST /auth/login` - Login and get JWT token
 
 ### Protected Endpoints (require JWT token)

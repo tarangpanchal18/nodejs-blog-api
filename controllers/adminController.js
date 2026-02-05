@@ -111,8 +111,33 @@ exports.postLogin = async (req, res) => {
  * GET /admin/logout
  */
 exports.logout = (req, res) => {
+  // Clear the admin token cookie
   res.clearCookie('adminToken');
-  res.redirect('/admin/login?success=Logged out successfully');
+  
+  // Render a logout page that clears localStorage and redirects
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Logging out...</title>
+    </head>
+    <body>
+      <script>
+        // Clear all tokens from localStorage
+        localStorage.removeItem('token');
+        localStorage.removeItem('adminToken');
+        localStorage.clear();
+        
+        // Clear session storage
+        sessionStorage.clear();
+        
+        // Redirect to login page (use replace to prevent back button)
+        window.location.replace('/admin/login?success=Logged out successfully');
+      </script>
+      <p>Logging out...</p>
+    </body>
+    </html>
+  `);
 };
 
 /**
@@ -121,6 +146,13 @@ exports.logout = (req, res) => {
  */
 exports.getDashboard = async (req, res) => {
   try {
+    // Set cache control headers to prevent caching
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+    
     // Get some stats for the dashboard
     const totalUsers = await User.countDocuments();
     const activeUsers = await User.countDocuments({ isActive: true });
@@ -159,6 +191,13 @@ exports.getDashboard = async (req, res) => {
  */
 exports.getUsers = async (req, res) => {
   try {
+    // Set cache control headers to prevent caching
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+    
     // Fetch all users with basic information
     const users = await User.find({})
       .select('name email isActive isAdmin createdAt')
@@ -231,6 +270,13 @@ exports.toggleUserStatus = async (req, res) => {
  */
 exports.getBlogs = async (req, res) => {
   try {
+    // Set cache control headers to prevent caching
+    res.set({
+      'Cache-Control': 'no-store, no-cache, must-revalidate, private',
+      'Pragma': 'no-cache',
+      'Expires': '0'
+    });
+    
     // Fetch all blogs with author information
     const blogs = await Blog.find({})
       .populate('user_id', 'name email')

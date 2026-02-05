@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const sendWelcomeEmail = require('../helpers/sendWelcomeEmail');
 const {
   sendSuccess,
   sendError,
@@ -77,6 +78,13 @@ const register = async (req, res) => {
       isActive: user.isActive,
       createdAt: user.createdAt,
     };
+
+    // Send welcome email asynchronously (don't wait for it)
+    // This runs in the background so it doesn't slow down the registration response
+    sendWelcomeEmail(user).catch((error) => {
+      console.error('Failed to send welcome email:', error);
+      // Email failure doesn't affect registration success
+    });
 
     return sendSuccess(
       res,
