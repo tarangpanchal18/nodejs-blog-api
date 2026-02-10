@@ -1,6 +1,8 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const sendWelcomeEmail = require('../helpers/sendWelcomeEmail');
+const sendPasswordResetEmail = require('../helpers/sendPasswordResetEmail');
 const {
   sendSuccess,
   sendError,
@@ -161,7 +163,151 @@ const login = async (req, res) => {
   }
 };
 
+/**
+ * Request password reset
+ * @route POST /auth/forgot-password
+ */
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    // Validation
+    if (!email || email.trim() === '') {
+      return sendValidationError(res, 'Email is required');
+    }
+
+    const emailRegex = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
+    if (!emailRegex.test(email)) {
+      return sendValidationError(res, 'Please provide a valid email');
+    }
+
+    // Find user
+    const user = await User.findOne({ email: email.toLowerCase() });
+
+    // Always send success message to prevent email enumeration
+    // This is a security best practice - don't reveal if email exists or not
+    if (!user) {
+      return sendSuccess(
+        res,
+        {},
+        'If an account with that email exists, a password reset link has been sent'
+      );
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      return sendSuccess(
+        res,
+        {},
+        'If an account with that email exists, a password reset link has been sent'
+      );
+    }
+
+    // Generate reset token (crypto.randomBytes is cryptographically secure)
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    
+    // Hash the token before storing (security best practice)
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(resetToken)
+      .digest('hex');
+
+    // Set token and expiry (1 hour from now)
+    user.resetToken = hashedToken;
+    user.resetTokenExpiry = Date.now() + 60 * 60 * 1000; // 1 hour
+    await user.save();
+
+    // Send password reset email asynchronously
+    sendPasswordResetEmail({
+      name: user.name,
+      email: user.email,
+      resetToken, // Send the unhashed token to the user
+    }).catch((error) => {
+      console.error('Failed to send password reset email:', error);
+      // Email failure is logged but doesn't affect the response
+    });
+
+    return sendSuccess(
+      res,
+      {},
+      'If an account with that email exists, a password reset link has been sent'
+    );
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    return sendError(res, 'Error processing password reset request', 500, error.message);
+  }
+};
+
+/**
+ * Reset password with token
+ * @route POST /auth/reset-password
+ */
+const resetPassword = async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    // Validation
+    const errors = [];
+
+    if (!token || token.trim() === '') {
+      errors.push('Reset token is required');
+    }
+
+    if (!password || password.length < 6) {
+      errors.push('Password is required and must be at least 6 characters');
+    }
+
+    if (errors.length > 0) {
+      return sendValidationError(res, 'Validation failed', errors);
+    }
+
+    // Hash the token to compare with stored hash
+    const hashedToken = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex');
+
+    // Find user with valid token and not expired
+    const user = await User.findOne({
+      resetToken: hashedToken,
+      resetTokenExpiry: { $gt: Date.now() }, // Token not expired
+    }).select('+resetToken +resetTokenExpiry');
+
+    if (!user) {
+      return sendValidationError(
+        res,
+        'Invalid or expired reset token. Please request a new password reset link.'
+      );
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      return sendUnauthorized(res, 'User account is inactive');
+    }
+
+    // Update password (will be hashed by pre-save hook)
+    user.password = password;
+    
+    // Clear reset token fields
+    user.resetToken = undefined;
+    user.resetTokenExpiry = undefined;
+    
+    await user.save();
+
+    return sendSuccess(
+      res,
+      {},
+      'Password has been reset successfully. You can now log in with your new password.'
+    );
+  } catch (error) {
+    console.error('Reset password error:', error);
+    return sendError(res, 'Error resetting password', 500, error.message);
+  }
+};
+
 module.exports = {
   register,
   login,
+  forgotPassword,
+  resetPassword,
 };

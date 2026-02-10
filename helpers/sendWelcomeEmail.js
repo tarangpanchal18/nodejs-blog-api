@@ -25,7 +25,7 @@ const sendWelcomeEmail = async (user) => {
 
     // Plain text version (fallback for email clients that don't support HTML)
     const text = `
-Welcome to Mediuum!
+Welcome to Meowwdium!
 
 Hello, ${user.name}!
 
@@ -46,13 +46,13 @@ Start writing at: ${appUrl}/write
 
 Happy Blogging!
 
-© ${new Date().getFullYear()} Mediuum. All rights reserved.
+© ${new Date().getFullYear()} Meowwdium. All rights reserved.
     `.trim();
 
     // Send the email
     await sendEmail({
       to: user.email,
-      subject: 'Welcome to Mediuum!',
+      subject: 'Welcome to Meowwdium!',
       text: text,
       html: html
     });
