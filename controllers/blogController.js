@@ -49,9 +49,9 @@ const getAllBlogs = async (req, res) => {
     // Fetch popular blogs
     const popularBlogs = await Blog.find(query)
       .populate('user_id', 'name avatar')
-      .sort({ impression: -1, updatedAt: -1 })
-      .skip((page - 1) * limit)
-      .limit(limit)
+        .sort({ impression: -1, updatedAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
       .select('-__v -content');
 
     // Fetch new blogs (last 72h)

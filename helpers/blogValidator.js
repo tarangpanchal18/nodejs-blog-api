@@ -113,7 +113,7 @@ const validateTitle = (title, isRequired = true) => {
     if (status !== undefined) {
       const normalizedStatus = status.toLowerCase();
       if (!allStatuses.includes(normalizedStatus)) {
-        errors.push('Status must be either "draft" or "published"');
+      errors.push('Status must be either "draft" or "published"');
       }
     }
     

@@ -8,11 +8,13 @@ const connectDB = require('./config/db');
 // Import models to ensure they're registered before routes use them
 require('./models/User');
 require('./models/Blog');
+require('./models/Comment');
 
 // Import routes
 const blogRoutes = require('./routes/blogRoutes');
 const authRoutes = require('./routes/authRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const commentRoutes = require('./routes/commentRoutes');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -38,6 +40,7 @@ app.use(cookieParser()); // Parse cookies for admin panel sessions
 
 // Apply rate limiting to all API routes
 app.use('/blog', apiLimiter);
+app.use('/api', apiLimiter);
 
 // ==================== Routes ====================
 // Health check endpoint
@@ -48,6 +51,7 @@ app.get('/', (req, res) => {
 // API routes
 app.use('/auth', authRoutes);
 app.use('/blog', blogRoutes);
+app.use('/api', commentRoutes);
 
 // Admin panel routes (renders HTML pages with EJS)
 app.use('/admin', adminRoutes);
