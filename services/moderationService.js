@@ -1,21 +1,39 @@
-// Import the LLM adapter
-import * as googleGemini from './llmAdapters/googleGemini.js';
-import * as openai from './llmAdapters/openai.js';
+const {
+  getAdapter,
+  listSupportedProviders,
+  resolveProviderName,
+} = require('./llmAdapters');
+const { technicalFailure } = require('./llmAdapters/utils/moderationResponse');
 
 /**
- * Checks blog content for safety (adult/spam).
+ * Checks blog content for safety (adult/spam/scam/gibberish).
+ * This service is provider-agnostic and uses the configured adapter.
+ *
  * @param {string} title
+ * @param {string} description
  * @param {string} content
  * @returns {Promise<{isSafe: boolean, reason: string}>}
  */
-export async function checkBlogContent(title, content) {
-    const provider = process.env.LLM_PROVIDER?.toLowerCase();
+async function checkBlogContent(title, description, content) {
+  const providerName = resolveProviderName();
+  const adapter = getAdapter(providerName);
 
-    if (provider === 'gemini') {
-        return await googleGemini.classifyContent(title, content);
-    } else if (provider === 'openai') {
-        return await openai.classifyContent(title, content);
-    } else {
-        throw new Error('LLM_PROVIDER environment variable must be set to "gemini" or "openai"');
-    }
+  if (!adapter) {
+    const supported = listSupportedProviders().join(', ');
+    console.error(
+      `❌ Unsupported LLM provider "${providerName}". Supported providers: ${supported}`
+    );
+    return technicalFailure('BLG_PROVIDER_UNSUPPORTED');
+  }
+
+  try {
+    return await adapter.classifyContent({ title, description, content });
+  } catch (error) {
+    console.error(`❌ Moderation adapter "${providerName}" failed:`, error?.message || error);
+    return technicalFailure('BLG_PROVIDER_RUNTIME');
+  }
 }
+
+module.exports = {
+  checkBlogContent,
+};

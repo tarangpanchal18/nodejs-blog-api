@@ -1,13 +1,10 @@
 require('dotenv').config();
 const rateLimit = require('express-rate-limit');
+const { ipKeyGenerator } = require('express-rate-limit');
 
 /**
  * Stricter rate limiter specifically for comment creation
  * Prevents comment spam by limiting how many comments a user can post
- * 
- * Configurable via environment variables:
- * - COMMENT_RATE_LIMIT_WINDOW_MS: Time window (default: 60000 = 1 minute)
- * - COMMENT_RATE_LIMIT_MAX: Maximum comments per window (default: 10)
  */
 const commentRateLimiter = rateLimit({
   windowMs: parseInt(process.env.COMMENT_RATE_LIMIT_WINDOW_MS) || 60 * 1000, // 1 minute
@@ -18,14 +15,14 @@ const commentRateLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Use a custom key generator to rate limit per IP + user combination
   keyGenerator: (req) => {
-    // If user is authenticated, use their user ID + IP
+    const ipKey = ipKeyGenerator(req);
+
     if (req.user && req.user._id) {
-      return `${req.ip}-${req.user._id}`;
+      return `${ipKey}-${req.user._id}`;
     }
-    // Otherwise just use IP
-    return req.ip;
+
+    return ipKey;
   },
 });
 
@@ -43,10 +40,13 @@ const reportRateLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
+    const ipKey = ipKeyGenerator(req);
+
     if (req.user && req.user._id) {
-      return `report-${req.ip}-${req.user._id}`;
+      return `report-${ipKey}-${req.user._id}`;
     }
-    return `report-${req.ip}`;
+
+    return `report-${ipKey}`;
   },
 });
 

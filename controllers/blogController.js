@@ -388,10 +388,11 @@ const updateBlog = async (req, res) => {
       validation.data.slug = newSlug;
     }
 
-    // Moderation flow: if status is 'published', save as 'pending_approval'
-    // Draft blogs are saved as-is
+    // Moderation flow: if user requests "published", route it to "pending_approval".
+    // This ensures every publish intent goes through AI moderation.
     const wasPendingApproval = blog.status === 'pending_approval';
-    if (validation.data.status === 'published') {
+    const requestedPublish = validation.data.status === 'published';
+    if (requestedPublish) {
       validation.data.status = 'pending_approval';
     }
 
@@ -402,9 +403,19 @@ const updateBlog = async (req, res) => {
     // Populate user data
     await blog.populate('user_id', 'name email username avatar bio');
 
-    // Trigger moderation event if blog is now pending approval (non-blocking)
-    // Only trigger if status changed to pending_approval (not if it was already pending)
-    if (blog.status === 'pending_approval' && !wasPendingApproval) {
+    // Trigger moderation when:
+    // 1) status just moved to pending_approval, or
+    // 2) user explicitly tried to publish again, or
+    // 3) pending blog content/title/description changed and needs re-check.
+    const moderationFieldsUpdated = ['title', 'description', 'content'].some((field) =>
+      Object.prototype.hasOwnProperty.call(validation.data, field)
+    );
+
+    const shouldTriggerModeration =
+      blog.status === 'pending_approval' &&
+      (!wasPendingApproval || requestedPublish || moderationFieldsUpdated);
+
+    if (shouldTriggerModeration) {
       blogEvents.emit('blogModeration', { blog });
     }
 

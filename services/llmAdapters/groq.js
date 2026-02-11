@@ -6,51 +6,51 @@ const {
   technicalFailure,
 } = require('./utils/moderationResponse');
 
-let openaiClient;
+let groqClient;
 
-function getOpenAIKey() {
-  return process.env.OPENAI_API_KEY || process.env.LLM_API_KEY || '';
+function getGroqKey() {
+  return process.env.GROQ_API_KEY || process.env.LLM_API_KEY || '';
 }
 
-function getOpenAIClient() {
-  if (!openaiClient) {
-    openaiClient = new OpenAI({
-      apiKey: getOpenAIKey(),
+function getGroqClient() {
+  if (!groqClient) {
+    groqClient = new OpenAI({
+      apiKey: getGroqKey(),
+      baseURL: process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1',
       timeout: Number(process.env.LLM_TIMEOUT_MS || 20000),
       maxRetries: Number(process.env.LLM_MAX_RETRIES || 1),
     });
   }
-  return openaiClient;
+  return groqClient;
 }
 
 async function classifyContent({ title, description, content }) {
-  const apiKey = getOpenAIKey();
+  const apiKey = getGroqKey();
   if (!apiKey) {
-    return technicalFailure('BLG_OPENAI_KEY');
+    return technicalFailure('BLG_GROQ_KEY');
   }
 
   const payload = prepareModerationPayload({ title, description, content });
-  const model = process.env.OPENAI_MODEL || process.env.LLM_MODEL || 'gpt-4o-mini';
+  const model = process.env.GROQ_MODEL || process.env.LLM_MODEL || 'llama-3.1-8b-instant';
 
   try {
-    const response = await getOpenAIClient().chat.completions.create({
+    const response = await getGroqClient().chat.completions.create({
       model,
       messages: buildModerationMessages(payload),
       temperature: 0,
       max_tokens: 180,
-      response_format: { type: 'json_object' },
     });
 
     const text = response?.choices?.[0]?.message?.content || '';
-    return parseModerationResponse(text, 'BLG_OPENAI_PARSE');
+    return parseModerationResponse(text, 'BLG_GROQ_PARSE');
   } catch (error) {
-    console.error('❌ OpenAI moderation error:', error?.message || error);
-    return technicalFailure('BLG_OPENAI_CALL');
+    console.error('❌ Groq moderation error:', error?.message || error);
+    return technicalFailure('BLG_GROQ_CALL');
   }
 }
 
 module.exports = {
-  provider: 'openai',
+  provider: 'groq',
   classifyContent,
-  isConfigured: () => Boolean(getOpenAIKey()),
+  isConfigured: () => Boolean(getGroqKey()),
 };

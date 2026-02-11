@@ -47,7 +47,11 @@ blogEvents.on('blogModeration', async ({ blog }) => {
     }
 
     // Call AI moderation immediately
-    const { isSafe, reason } = await checkBlogContent(freshBlog.title, freshBlog.content);
+    const { isSafe, reason } = await checkBlogContent(
+      freshBlog.title,
+      freshBlog.description,
+      freshBlog.content
+    );
 
     if (isSafe) {
       freshBlog.status = 'published';
