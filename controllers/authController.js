@@ -1,6 +1,8 @@
 const User = require('../models/User');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const sendWelcomeEmail = require('../helpers/sendWelcomeEmail');
 const sendPasswordResetEmail = require('../helpers/sendPasswordResetEmail');
 const {
@@ -18,6 +20,29 @@ const generateToken = (userId) => {
     expiresIn: process.env.JWT_EXPIRES_IN || '7d',
   });
 };
+
+const toPublicAvatarUrl = (avatar, req) => {
+  if (!avatar) {
+    return '';
+  }
+
+  if (avatar.startsWith('http://') || avatar.startsWith('https://')) {
+    return avatar;
+  }
+
+  return `${req.protocol}://${req.get('host')}${avatar}`;
+};
+
+const formatUser = (user, req) => ({
+  id: user._id,
+  name: user.name,
+  email: user.email,
+  username: user.username,
+  avatar: toPublicAvatarUrl(user.avatar, req),
+  isActive: user.isActive,
+  createdAt: user.createdAt,
+  updatedAt: user.updatedAt,
+});
 
 /**
  * Register a new user
@@ -71,16 +96,6 @@ const register = async (req, res) => {
     // Generate token
     const token = generateToken(user._id);
 
-    // Return user data (without password)
-    const userData = {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      username: user.username,
-      isActive: user.isActive,
-      createdAt: user.createdAt,
-    };
-
     // Send welcome email asynchronously (don't wait for it)
     // This runs in the background so it doesn't slow down the registration response
     sendWelcomeEmail(user).catch((error) => {
@@ -91,7 +106,7 @@ const register = async (req, res) => {
     return sendSuccess(
       res,
       {
-        user: userData,
+        user: formatUser(user, req),
         token,
       },
       'User registered successfully',
@@ -140,20 +155,10 @@ const login = async (req, res) => {
     // Generate token
     const token = generateToken(user._id);
 
-    // Return user data (without password)
-    const userData = {
-      _id: user._id,
-      name: user.name,
-      email: user.email,
-      username: user.username,
-      isActive: user.isActive,
-      createdAt: user.createdAt,
-    };
-
     return sendSuccess(
       res,
       {
-        user: userData,
+        user: formatUser(user, req),
         token,
       },
       'Login successful'
@@ -305,9 +310,87 @@ const resetPassword = async (req, res) => {
   }
 };
 
+/**
+ * Get current user profile
+ * @route GET /auth/me
+ */
+const getProfile = async (req, res) => {
+  try {
+    return sendSuccess(
+      res,
+      { user: formatUser(req.user, req) },
+      'Profile fetched successfully'
+    );
+  } catch (error) {
+    return sendError(res, 'Error fetching profile', 500, error.message);
+  }
+};
+
+/**
+ * Update current user profile
+ * @route PUT /auth/me
+ */
+const updateProfile = async (req, res) => {
+  try {
+    const { name, email } = req.body;
+
+    if (email !== undefined && email !== req.user.email) {
+      return sendValidationError(res, 'Email cannot be changed');
+    }
+
+    if (!name || name.trim() === '') {
+      return sendValidationError(res, 'Name is required');
+    }
+
+    if (name.trim().length > 100) {
+      return sendValidationError(res, 'Name cannot exceed 100 characters');
+    }
+
+    req.user.name = name.trim();
+
+    if (req.file) {
+      const previousAvatar = req.user.avatar;
+      const avatarPath = `/uploads/profiles/${req.file.filename}`;
+      req.user.avatar = avatarPath;
+
+      // Clean up previous local profile image when replaced
+      if (previousAvatar && previousAvatar.startsWith('/uploads/profiles/')) {
+        const previousFileName = path.basename(previousAvatar);
+        const previousFilePath = path.join(
+          __dirname,
+          '..',
+          'uploads',
+          'profiles',
+          previousFileName
+        );
+
+        if (fs.existsSync(previousFilePath)) {
+          fs.unlink(previousFilePath, (unlinkError) => {
+            if (unlinkError) {
+              console.error('Failed to remove previous profile image:', unlinkError.message);
+            }
+          });
+        }
+      }
+    }
+
+    await req.user.save();
+
+    return sendSuccess(
+      res,
+      { user: formatUser(req.user, req) },
+      'Profile updated successfully'
+    );
+  } catch (error) {
+    return sendError(res, 'Error updating profile', 500, error.message);
+  }
+};
+
 module.exports = {
   register,
   login,
   forgotPassword,
   resetPassword,
+  getProfile,
+  updateProfile,
 };

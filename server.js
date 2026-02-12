@@ -37,6 +37,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser()); // Parse cookies for admin panel sessions
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Apply rate limiting to all API routes
 app.use('/blog', apiLimiter);
