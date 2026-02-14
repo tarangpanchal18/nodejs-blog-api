@@ -95,6 +95,11 @@
                 <i class="bi bi-file-text"></i> Blogs
               </a>
             </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/admin/comments">
+                <i class="bi bi-chat-left-text"></i> Comments
+              </a>
+            </li>
           </ul>
           
           <hr class="text-white-50 my-4">
@@ -268,6 +273,10 @@
                           <i class="bi bi-circle-fill text-secondary small"></i>
                           Pending Approval: <strong><%= stats.pendingBlogs %></strong>
                         </li>
+                        <li class="mb-2">
+                          <i class="bi bi-circle-fill text-danger small"></i>
+                          Flagged Comments: <strong><%= stats.flaggedComments || 0 %></strong>
+                        </li>
                       </ul>
                     </div>
                   </div>
@@ -290,6 +299,9 @@
                     </a>
                     <a href="/admin/blogs" class="btn btn-outline-info">
                       <i class="bi bi-file-text"></i> Manage Blogs
+                    </a>
+                    <a href="/admin/comments" class="btn btn-outline-warning">
+                      <i class="bi bi-chat-left-text"></i> Moderate Comments
                     </a>
                   </div>
                 </div>

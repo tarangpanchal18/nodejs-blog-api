@@ -127,11 +127,19 @@ const seedBlogs = async () => {
     console.log(`✅ Successfully seeded ${users.length} user(s)`);
     const defaultUser = users[0];
 
-    // Add user_id reference to blog data
-    const blogsWithUser = blogData.map((blog) => ({
-      ...blog,
-      user_id: defaultUser._id,
-    }));
+    // Generate a larger dataset for load/performance testing
+    const TARGET_BLOG_COUNT = 10000;
+    const blogsWithUser = Array.from({ length: TARGET_BLOG_COUNT }, (_, index) => {
+      const template = blogData[index % blogData.length];
+      const postfix = index + 1;
+
+      return {
+        ...template,
+        title: `${template.title} - ${postfix}`,
+        slug: `${template.slug}-${postfix}`,
+        user_id: defaultUser._id,
+      };
+    });
 
     // Insert blog data
     const blogs = await Blog.insertMany(blogsWithUser);

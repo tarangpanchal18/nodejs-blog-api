@@ -93,6 +93,11 @@
                 <i class="bi bi-file-text"></i> Blogs
               </a>
             </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/admin/comments">
+                <i class="bi bi-chat-left-text"></i> Comments
+              </a>
+            </li>
           </ul>
           
           <hr class="text-white-50 my-4">
@@ -146,7 +151,7 @@
             <div class="card-header bg-white">
               <div class="d-flex justify-content-between align-items-center">
                 <h5 class="mb-0">
-                  <i class="bi bi-file-text"></i> All Blogs (<%= blogs.length %>)
+                  <i class="bi bi-file-text"></i> All Blogs (<%= pagination ? pagination.total : blogs.length %>)
                 </h5>
               </div>
             </div>
@@ -173,7 +178,7 @@
                     <tbody>
                       <% blogs.forEach((blog, index) => { %>
                         <tr id="blog-row-<%= blog._id %>">
-                          <td class="text-center text-muted"><%= index + 1 %></td>
+                          <td class="text-center text-muted"><%= ((pagination.page - 1) * pagination.limit) + index + 1 %></td>
                           <td>
                             <div class="blog-title">
                               <strong><%= blog.title %></strong>
@@ -271,6 +276,29 @@
                 </div>
               <% } %>
             </div>
+            <% if (pagination && pagination.pages > 1) { %>
+              <div class="card-footer bg-white">
+                <nav aria-label="Blogs pagination">
+                  <ul class="pagination pagination-sm justify-content-center mb-0">
+                    <li class="page-item <%= pagination.page <= 1 ? 'disabled' : '' %>">
+                      <a class="page-link" href="/admin/blogs?page=<%= pagination.page - 1 %>&limit=<%= pagination.limit %>">Previous</a>
+                    </li>
+                    <%
+                      const pageStart = Math.max(1, pagination.page - 2);
+                      const pageEnd = Math.min(pagination.pages, pagination.page + 2);
+                      for (let p = pageStart; p <= pageEnd; p++) {
+                    %>
+                      <li class="page-item <%= p === pagination.page ? 'active' : '' %>">
+                        <a class="page-link" href="/admin/blogs?page=<%= p %>&limit=<%= pagination.limit %>"><%= p %></a>
+                      </li>
+                    <% } %>
+                    <li class="page-item <%= pagination.page >= pagination.pages ? 'disabled' : '' %>">
+                      <a class="page-link" href="/admin/blogs?page=<%= pagination.page + 1 %>&limit=<%= pagination.limit %>">Next</a>
+                    </li>
+                  </ul>
+                </nav>
+              </div>
+            <% } %>
           </div>
         </div>
       </main>

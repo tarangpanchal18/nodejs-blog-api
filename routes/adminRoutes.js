@@ -33,5 +33,7 @@ router.patch('/users/:id', adminController.toggleUserStatus);
 router.get('/blogs', adminController.getBlogs);
 router.patch('/blogs/:id', adminController.toggleBlogStatus);
 router.delete('/blogs/:id', adminController.deleteBlog);
+router.get('/comments', adminController.getComments);
+router.patch('/comments/:id/moderate', adminController.moderateComment);
 
 module.exports = router;
