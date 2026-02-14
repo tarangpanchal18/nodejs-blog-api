@@ -1,6 +1,8 @@
 const Comment = require('../models/Comment');
 const Blog = require('../models/Blog');
 const buildCommentTree = require('../helpers/buildCommentTree');
+const sendCommentNotificationEmail = require('../helpers/sendCommentNotificationEmail');
+const sendReplyNotificationEmail = require('../helpers/sendReplyNotificationEmail');
 
 // Configuration for spam management
 const SPAM_CONFIG = {
@@ -98,7 +100,7 @@ exports.createComment = async (req, res, next) => {
     }
     
     // Find blog - must be published
-    const blog = await Blog.findOne({ slug, status: 'published' });
+    const blog = await Blog.findOne({ slug, status: 'published' }).populate('user_id', 'name email');
     if (!blog) {
       return res.status(404).json({
         success: false,
@@ -118,6 +120,34 @@ exports.createComment = async (req, res, next) => {
     
     // Populate user data
     await comment.populate('user_id', 'name username avatar');
+
+    // Email notification rules:
+    // 1) Send only for top-level comments (no parent).
+    // 2) Do not send if top-level comment count for this blog is greater than 10.
+    const isTopLevelComment = !comment.parent_id;
+    if (isTopLevelComment) {
+      const topLevelCommentCount = await Comment.countDocuments({
+        blog_id: blog._id,
+        parent_id: null
+      });
+
+      const shouldSendNotification = topLevelCommentCount <= 10;
+      const isSelfComment = blog.user_id && blog.user_id._id.toString() === userId.toString();
+      const hasOwnerEmail = blog.user_id && blog.user_id.email;
+
+      if (shouldSendNotification && !isSelfComment && hasOwnerEmail) {
+        sendCommentNotificationEmail({
+          ownerEmail: blog.user_id.email,
+          ownerName: blog.user_id.name || 'there',
+          blogTitle: blog.title,
+          blogSlug: blog.slug,
+          commentAuthor: comment.user_id.name || comment.user_id.username || 'Someone',
+          commentContent: comment.content
+        }).catch((error) => {
+          console.error('Failed to send comment notification email:', error);
+        });
+      }
+    }
     
     res.status(201).json({
       success: true,
@@ -172,7 +202,9 @@ exports.replyToComment = async (req, res, next) => {
     }
     
     // Find parent comment
-    const parentComment = await Comment.findById(commentId);
+    const parentComment = await Comment.findById(commentId)
+      .populate('user_id', 'name email')
+      .populate('blog_id', 'title slug');
     if (!parentComment) {
       return res.status(404).json({
         success: false,
@@ -211,6 +243,27 @@ exports.replyToComment = async (req, res, next) => {
     
     // Populate user data
     await reply.populate('user_id', 'name username avatar');
+
+    // Notify parent comment owner about the new reply.
+    const parentCommentOwnerId = parentComment.user_id && parentComment.user_id._id
+      ? parentComment.user_id._id.toString()
+      : parentComment.user_id.toString();
+    const isReplyToOwnComment = parentCommentOwnerId === userId.toString();
+    const hasRecipientEmail = parentComment.user_id && parentComment.user_id.email;
+    const hasBlogContext = parentComment.blog_id && parentComment.blog_id.slug;
+
+    if (!isReplyToOwnComment && hasRecipientEmail && hasBlogContext) {
+      sendReplyNotificationEmail({
+        recipientEmail: parentComment.user_id.email,
+        recipientName: parentComment.user_id.name || 'there',
+        blogTitle: parentComment.blog_id.title,
+        blogSlug: parentComment.blog_id.slug,
+        replyAuthor: reply.user_id.name || reply.user_id.username || 'Someone',
+        replyContent: reply.content
+      }).catch((error) => {
+        console.error('Failed to send reply notification email:', error);
+      });
+    }
     
     res.status(201).json({
       success: true,
