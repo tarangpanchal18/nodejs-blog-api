@@ -104,14 +104,16 @@ const getBlogBySlug = async (req, res) => {
       return sendNotFound(res, 'Blog not found');
     }
 
-    // increment views
-    blog.impression += 1;
-    await blog.save();
+    // Increment views only for published blogs
+    if (blog.status === 'published') {
+      blog.impression += 1;
+      await blog.save();
 
-    // 🔥 emit event on every x views
-    const viewsThreshold = parseInt(process.env.BLOG_VIEWS_EMAIL_THRESHOLD, 10);
-    if (blog.impression % viewsThreshold === 0) {
-      blogEvents.emit('viewsThreshold', blog);
+      // 🔥 emit event on every x views
+      const viewsThreshold = parseInt(process.env.BLOG_VIEWS_EMAIL_THRESHOLD, 10);
+      if (blog.impression % viewsThreshold === 0) {
+        blogEvents.emit('viewsThreshold', blog);
+      }
     }
 
     return sendSuccess(res, blog, 'Blog fetched successfully');
