@@ -1,15 +1,20 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
+const cookieParser = require('cookie-parser');
 const connectDB = require('./config/db');
 
 // Import models to ensure they're registered before routes use them
 require('./models/User');
 require('./models/Blog');
+require('./models/Comment');
 
 // Import routes
 const blogRoutes = require('./routes/blogRoutes');
 const authRoutes = require('./routes/authRoutes');
+const adminRoutes = require('./routes/adminRoutes');
+const commentRoutes = require('./routes/commentRoutes');
 
 // Import middleware
 const errorHandler = require('./middleware/errorHandler');
@@ -22,13 +27,21 @@ const app = express();
 // Connect to MongoDB
 connectDB();
 
+// ==================== View Engine Setup ====================
+// Set EJS as the template engine for admin panel
+app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
+
 // ==================== Middleware ====================
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser()); // Parse cookies for admin panel sessions
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Apply rate limiting to all API routes
 app.use('/blog', apiLimiter);
+app.use('/api', apiLimiter);
 
 // ==================== Routes ====================
 // Health check endpoint
@@ -39,6 +52,10 @@ app.get('/', (req, res) => {
 // API routes
 app.use('/auth', authRoutes);
 app.use('/blog', blogRoutes);
+app.use('/api', commentRoutes);
+
+// Admin panel routes (renders HTML pages with EJS)
+app.use('/admin', adminRoutes);
 
 
 // ==================== Event Listeners ====================

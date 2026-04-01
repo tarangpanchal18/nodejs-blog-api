@@ -1,5 +1,6 @@
 require('dotenv').config();
 const mongoose = require('mongoose');
+const bcrypt = require('bcrypt');
 // Import User first to ensure it's registered before Blog references it
 const User = require('../models/User');
 const Blog = require('../models/Blog');
@@ -23,6 +24,7 @@ const userData = [
     name: 'John Doe',
     email: 'john.doe@example.com',
     username: 'johndoe',
+    password: bcrypt.hashSync('Test105*', 10),
     bio: 'Full-stack developer passionate about Node.js and web technologies.',
     avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200',
   },
@@ -125,11 +127,19 @@ const seedBlogs = async () => {
     console.log(`✅ Successfully seeded ${users.length} user(s)`);
     const defaultUser = users[0];
 
-    // Add user_id reference to blog data
-    const blogsWithUser = blogData.map((blog) => ({
-      ...blog,
-      user_id: defaultUser._id,
-    }));
+    // Generate a larger dataset for load/performance testing
+    const TARGET_BLOG_COUNT = 10000;
+    const blogsWithUser = Array.from({ length: TARGET_BLOG_COUNT }, (_, index) => {
+      const template = blogData[index % blogData.length];
+      const postfix = index + 1;
+
+      return {
+        ...template,
+        title: `${template.title} - ${postfix}`,
+        slug: `${template.slug}-${postfix}`,
+        user_id: defaultUser._id,
+      };
+    });
 
     // Insert blog data
     const blogs = await Blog.insertMany(blogsWithUser);

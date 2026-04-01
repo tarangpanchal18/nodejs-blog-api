@@ -46,6 +46,18 @@ const userSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    isAdmin: {
+      type: Boolean,
+      default: false,
+    },
+    resetToken: {
+      type: String,
+      select: false, // Don't include in queries by default
+    },
+    resetTokenExpiry: {
+      type: Date,
+      select: false, // Don't include in queries by default
+    },
   },
   {
     timestamps: true, // This automatically adds createdAt and updatedAt

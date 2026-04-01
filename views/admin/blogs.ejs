@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title><%= title %> - Admin Panel</title>
+  
+  <!-- Bootstrap 5 CSS -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  
+  <!-- Bootstrap Icons -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+  
+  <style>
+    body {
+      min-height: 100vh;
+      background-color: #f8f9fa;
+    }
+    
+    .sidebar {
+      min-height: 100vh;
+      background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
+      box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+    }
+    
+    .sidebar .nav-link {
+      color: #ecf0f1;
+      padding: 1rem 1.5rem;
+      border-radius: 8px;
+      margin: 0.2rem 0.5rem;
+      transition: all 0.3s ease;
+    }
+    
+    .sidebar .nav-link:hover {
+      background-color: rgba(255,255,255,0.1);
+      transform: translateX(5px);
+    }
+    
+    .sidebar .nav-link.active {
+      background-color: #3498db;
+      color: white;
+    }
+    
+    .sidebar .nav-link i {
+      margin-right: 10px;
+      font-size: 1.2rem;
+    }
+    
+    .admin-header {
+      background: white;
+      border-bottom: 1px solid #dee2e6;
+      padding: 1rem 2rem;
+      margin-bottom: 2rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    
+    .table-actions button {
+      margin: 0 2px;
+    }
+    
+    .status-badge {
+      font-size: 0.85rem;
+      padding: 0.4rem 0.8rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container-fluid">
+    <div class="row">
+      <!-- Sidebar -->
+      <nav class="col-md-3 col-lg-2 d-md-block sidebar p-3">
+        <div class="position-sticky pt-3">
+          <div class="text-center mb-4">
+            <h4 class="text-white">
+              <i class="bi bi-shield-lock"></i> Admin Panel
+            </h4>
+            <p class="text-white-50 small mb-0"><%= user.name %></p>
+          </div>
+          
+          <ul class="nav flex-column">
+            <li class="nav-item">
+              <a class="nav-link" href="/admin">
+                <i class="bi bi-speedometer2"></i> Dashboard
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/admin/users">
+                <i class="bi bi-people"></i> Users
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="/admin/blogs">
+                <i class="bi bi-file-text"></i> Blogs
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/admin/comments">
+                <i class="bi bi-chat-left-text"></i> Comments
+              </a>
+            </li>
+          </ul>
+          
+          <hr class="text-white-50 my-4">
+          
+          <ul class="nav flex-column">
+            <li class="nav-item">
+              <a class="nav-link text-danger" href="/admin/logout" onclick="return confirm('Are you sure you want to logout?')">
+                <i class="bi bi-box-arrow-left"></i> Logout
+              </a>
+            </li>
+          </ul>
+        </div>
+      </nav>
+
+      <!-- Main content -->
+      <main class="col-md-9 ms-sm-auto col-lg-10 px-0">
+        <div class="admin-header">
+          <div class="d-flex justify-content-between align-items-center">
+            <h1 class="h2 mb-0"><%= title %></h1>
+            <div>
+              <span class="badge bg-success">Admin</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="content-area px-4">
+          <!-- Alert messages -->
+          <% if (success) { %>
+            <div class="alert alert-success alert-dismissible fade show" role="alert">
+              <i class="bi bi-check-circle"></i> <%= success %>
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          <% } %>
+          
+          <% if (error) { %>
+            <div class="alert alert-danger alert-dismissible fade show" role="alert">
+              <i class="bi bi-exclamation-triangle"></i> <%= error %>
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          <% } %>
+          
+          <!-- Page Header -->
+          <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+              <p class="text-muted mb-0">Manage all blogs in the system</p>
+            </div>
+          </div>
+
+          <!-- Blogs Table -->
+          <div class="card shadow-sm">
+            <div class="card-header bg-white">
+              <div class="d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">
+                  <i class="bi bi-file-text"></i> All Blogs (<%= pagination ? pagination.total : blogs.length %>)
+                </h5>
+              </div>
+            </div>
+            <div class="card-body p-0">
+              <% if (blogs.length === 0) { %>
+                <div class="text-center py-5">
+                  <i class="bi bi-inbox" style="font-size: 3rem; color: #ccc;"></i>
+                  <p class="text-muted mt-3">No blogs found</p>
+                </div>
+              <% } else { %>
+                <div class="table-responsive">
+                  <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                      <tr>
+                        <th scope="col" class="text-center" style="width: 50px;">#</th>
+                        <th scope="col">Title</th>
+                        <th scope="col">Author</th>
+                        <th scope="col" class="text-center">Status</th>
+                        <th scope="col" class="text-center">Views</th>
+                        <th scope="col" class="text-center">Created</th>
+                        <th scope="col" class="text-center" style="width: 250px;">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <% blogs.forEach((blog, index) => { %>
+                        <tr id="blog-row-<%= blog._id %>">
+                          <td class="text-center text-muted"><%= ((pagination.page - 1) * pagination.limit) + index + 1 %></td>
+                          <td>
+                            <div class="blog-title">
+                              <strong><%= blog.title %></strong>
+                              <div class="text-muted small">
+                                <code><%= blog.slug %></code>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            <div class="d-flex align-items-center">
+                              <div class="avatar-circle bg-info text-white rounded-circle d-flex align-items-center justify-content-center me-2" style="width: 30px; height: 30px; font-size: 0.8rem;">
+                                <%= blog.user_id ? blog.user_id.name.charAt(0).toUpperCase() : '?' %>
+                              </div>
+                              <div>
+                                <div class="small"><%= blog.user_id ? blog.user_id.name : 'Unknown' %></div>
+                                <div class="text-muted" style="font-size: 0.75rem;"><%= blog.user_id ? blog.user_id.email : 'N/A' %></div>
+                              </div>
+                            </div>
+                          </td>
+                          <td class="text-center">
+                            <% 
+                              let statusClass = 'secondary';
+                              let statusIcon = 'bi-question-circle';
+                              
+                              if (blog.status === 'published') {
+                                statusClass = 'success';
+                                statusIcon = 'bi-check-circle';
+                              } else if (blog.status === 'draft') {
+                                statusClass = 'warning';
+                                statusIcon = 'bi-pencil';
+                              } else if (blog.status === 'pending_approval') {
+                                statusClass = 'info';
+                                statusIcon = 'bi-clock';
+                              } else if (blog.status === 'rejected') {
+                                statusClass = 'danger';
+                                statusIcon = 'bi-x-circle';
+                              }
+                            %>
+                            <span class="badge bg-<%= statusClass %> status-badge" id="status-badge-<%= blog._id %>">
+                              <i class="bi <%= statusIcon %>"></i>
+                              <%= blog.status.replace('_', ' ').toUpperCase() %>
+                            </span>
+                          </td>
+                          <td class="text-center">
+                            <span class="badge bg-light text-dark">
+                              <i class="bi bi-eye"></i> <%= blog.impression || 0 %>
+                            </span>
+                          </td>
+                          <td class="text-center text-muted small">
+                            <%= new Date(blog.createdAt).toLocaleDateString() %>
+                          </td>
+                          <td class="text-center table-actions">
+                            <!-- Status dropdown -->
+                            <div class="btn-group" role="group">
+                              <button type="button" class="btn btn-sm btn-outline-primary dropdown-toggle" data-bs-toggle="dropdown">
+                                <i class="bi bi-arrow-repeat"></i> Change Status
+                              </button>
+                              <ul class="dropdown-menu">
+                                <li>
+                                  <a class="dropdown-item" href="#" onclick="changeBlogStatus('<%= blog._id %>', 'draft'); return false;">
+                                    <i class="bi bi-pencil text-warning"></i> Draft
+                                  </a>
+                                </li>
+                                <li>
+                                  <a class="dropdown-item" href="#" onclick="changeBlogStatus('<%= blog._id %>', 'published'); return false;">
+                                    <i class="bi bi-check-circle text-success"></i> Published
+                                  </a>
+                                </li>
+                                <li>
+                                  <a class="dropdown-item" href="#" onclick="changeBlogStatus('<%= blog._id %>', 'pending_approval'); return false;">
+                                    <i class="bi bi-clock text-info"></i> Pending Approval
+                                  </a>
+                                </li>
+                                <li>
+                                  <a class="dropdown-item" href="#" onclick="changeBlogStatus('<%= blog._id %>', 'rejected'); return false;">
+                                    <i class="bi bi-x-circle text-danger"></i> Rejected
+                                  </a>
+                                </li>
+                              </ul>
+                            </div>
+                            
+                            <!-- Delete button -->
+                            <button 
+                              class="btn btn-sm btn-outline-danger"
+                              onclick="deleteBlog('<%= blog._id %>')"
+                              title="Delete blog"
+                            >
+                              <i class="bi bi-trash"></i>
+                            </button>
+                          </td>
+                        </tr>
+                      <% }); %>
+                    </tbody>
+                  </table>
+                </div>
+              <% } %>
+            </div>
+            <% if (pagination && pagination.pages > 1) { %>
+              <div class="card-footer bg-white">
+                <nav aria-label="Blogs pagination">
+                  <ul class="pagination pagination-sm justify-content-center mb-0">
+                    <li class="page-item <%= pagination.page <= 1 ? 'disabled' : '' %>">
+                      <a class="page-link" href="/admin/blogs?page=<%= pagination.page - 1 %>&limit=<%= pagination.limit %>">Previous</a>
+                    </li>
+                    <%
+                      const pageStart = Math.max(1, pagination.page - 2);
+                      const pageEnd = Math.min(pagination.pages, pagination.page + 2);
+                      for (let p = pageStart; p <= pageEnd; p++) {
+                    %>
+                      <li class="page-item <%= p === pagination.page ? 'active' : '' %>">
+                        <a class="page-link" href="/admin/blogs?page=<%= p %>&limit=<%= pagination.limit %>"><%= p %></a>
+                      </li>
+                    <% } %>
+                    <li class="page-item <%= pagination.page >= pagination.pages ? 'disabled' : '' %>">
+                      <a class="page-link" href="/admin/blogs?page=<%= pagination.page + 1 %>&limit=<%= pagination.limit %>">Next</a>
+                    </li>
+                  </ul>
+                </nav>
+              </div>
+            <% } %>
+          </div>
+        </div>
+      </main>
+    </div>
+  </div>
+
+  <!-- Bootstrap 5 JS Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+  
+  <script>
+    // Security: Prevent access to cached pages after logout
+    window.addEventListener('pageshow', function(event) {
+      // If page is loaded from cache (back/forward button)
+      if (event.persisted || (window.performance && window.performance.navigation.type === 2)) {
+        // Force reload from server (not cache)
+        window.location.reload();
+      }
+    });
+    
+    // Security: Verify authentication on page load
+    (function checkAuth() {
+      // Check if we have a cookie by making a simple test request
+      fetch('/admin', {
+        method: 'HEAD',
+        credentials: 'include'
+      }).catch(() => {
+        // If request fails, redirect to login
+        window.location.replace('/admin/login?error=Session expired. Please login again.');
+      });
+    })();
+    
+    // Auto-dismiss alerts after 5 seconds
+    setTimeout(() => {
+      const alerts = document.querySelectorAll('.alert');
+      alerts.forEach(alert => {
+        const bsAlert = new bootstrap.Alert(alert);
+        bsAlert.close();
+      });
+    }, 5000);
+
+    async function changeBlogStatus(blogId, newStatus) {
+      const statusBadge = document.getElementById(`status-badge-${blogId}`);
+      const originalBadgeHTML = statusBadge.innerHTML;
+      
+      statusBadge.innerHTML = '<span class="spinner-border spinner-border-sm" role="status"></span>';
+      
+      try {
+        const response = await fetch(`/admin/blogs/${blogId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(localStorage.getItem('token') && {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            })
+          },
+          credentials: 'include', // Important: include cookies
+          body: JSON.stringify({ status: newStatus })
+        });
+        
+        // Check if unauthorized (session expired)
+        if (response.status === 401 || response.status === 403) {
+          window.location.replace('/admin/login?error=Session expired. Please login again.');
+          return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          let statusClass = 'secondary';
+          let statusIcon = 'bi-question-circle';
+          
+          if (data.status === 'published') {
+            statusClass = 'success';
+            statusIcon = 'bi-check-circle';
+          } else if (data.status === 'draft') {
+            statusClass = 'warning';
+            statusIcon = 'bi-pencil';
+          } else if (data.status === 'pending_approval') {
+            statusClass = 'info';
+            statusIcon = 'bi-clock';
+          } else if (data.status === 'rejected') {
+            statusClass = 'danger';
+            statusIcon = 'bi-x-circle';
+          }
+          
+          statusBadge.className = `badge bg-${statusClass} status-badge`;
+          statusBadge.innerHTML = `
+            <i class="bi ${statusIcon}"></i>
+            ${data.status.replace('_', ' ').toUpperCase()}
+          `;
+          
+          showAlert('success', data.message);
+        } else {
+          throw new Error(data.message || 'Failed to update blog status');
+        }
+      } catch (error) {
+        console.error('Error changing blog status:', error);
+        showAlert('danger', error.message || 'Failed to update blog status');
+        statusBadge.innerHTML = originalBadgeHTML;
+      }
+    }
+
+    async function deleteBlog(blogId) {
+      if (!confirm('Are you sure you want to delete this blog? This action cannot be undone.')) {
+        return;
+      }
+      
+      const row = document.getElementById(`blog-row-${blogId}`);
+      
+      try {
+        const response = await fetch(`/admin/blogs/${blogId}`, {
+          method: 'DELETE',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(localStorage.getItem('token') && {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            })
+          },
+          credentials: 'include' // Important: include cookies
+        });
+        
+        // Check if unauthorized (session expired)
+        if (response.status === 401 || response.status === 403) {
+          window.location.replace('/admin/login?error=Session expired. Please login again.');
+          return;
+        }
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          row.style.opacity = '0';
+          row.style.transition = 'opacity 0.5s';
+          setTimeout(() => {
+            row.remove();
+            
+            const tbody = document.querySelector('tbody');
+            if (tbody.children.length === 0) {
+              location.reload();
+            }
+          }, 500);
+          
+          showAlert('success', data.message);
+        } else {
+          throw new Error(data.message || 'Failed to delete blog');
+        }
+      } catch (error) {
+        console.error('Error deleting blog:', error);
+        showAlert('danger', error.message || 'Failed to delete blog');
+      }
+    }
+
+    function showAlert(type, message) {
+      const alertHTML = `
+        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+          <i class="bi ${type === 'success' ? 'bi-check-circle' : 'bi-exclamation-triangle'}"></i>
+          ${message}
+          <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+      `;
+      
+      const contentArea = document.querySelector('.content-area');
+      contentArea.insertAdjacentHTML('afterbegin', alertHTML);
+      
+      setTimeout(() => {
+        const alert = contentArea.querySelector('.alert');
+        if (alert) {
+          const bsAlert = new bootstrap.Alert(alert);
+          bsAlert.close();
+        }
+      }, 5000);
+    }
+  </script>
+</body>
+</html>

@@ -1,6 +1,7 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { sendUnauthorized, sendError } = require('../helpers/responseHelper');
+const { sanitizeObjectId } = require('../helpers/securityHelper');
 
 /**
  * Authentication middleware
@@ -26,8 +27,14 @@ const authenticate = async (req, res, next) => {
       // Verify token
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
+      // Sanitize and validate userId from token
+      const userId = sanitizeObjectId(decoded.userId);
+      if (!userId) {
+        return sendUnauthorized(res, 'Invalid token. Please login again.');
+      }
+
       // Get user from database
-      const user = await User.findById(decoded.userId).select('-password');
+      const user = await User.findById(userId).select('-password');
 
       if (!user) {
         return sendUnauthorized(res, 'User not found. Token invalid.');
@@ -39,7 +46,7 @@ const authenticate = async (req, res, next) => {
 
       // Attach user to request
       req.user = user;
-      req.userId = decoded.userId;
+      req.userId = userId;
 
       next();
     } catch (tokenError) {

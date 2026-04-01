@@ -13,6 +13,13 @@ const {
   validateBlogData,
   generateSlug,
 } = require('../helpers/blogValidator');
+const {
+  escapeRegex,
+  sanitizeStatus,
+  sanitizeStringArray,
+  sanitizePagination,
+  sanitizeSlug,
+} = require('../helpers/securityHelper');
 const { parse } = require('csv-parse/sync');
 const blogEvents = require('../events/blogEvents');
 
@@ -24,54 +31,102 @@ const getAllBlogs = async (req, res) => {
   try {
     const defaultLimit = Number(process.env.PAGINATION_LIMIT) || 10;
 
-    let {
-      page = 1,
-      limit = defaultLimit,
-      tag,
-      status,
-      search,
-    } = req.query;
+    const { page, limit } = sanitizePagination(req.query.page, req.query.limit || defaultLimit);
+    const search = req.query.search ? escapeRegex(req.query.search.trim()) : null;
+    // const status = sanitizeStatus(req.query.status) || 'published';
+    const status = 'published';
+    const tagArray = req.query.tag ? sanitizeStringArray(req.query.tag) : null;
+    const query = { status };
 
-    page = Math.max(parseInt(page) || 1, 1);
-    limit = Math.max(parseInt(limit) || defaultLimit, 1);
-
-    const query = {};
-
-    if (search && search.trim()) {
-      query.title = {
-        $regex: search.trim(),
-        $options: 'i', // case-insensitive
-      };
+    if (search) {
+      query.title = { $regex: search, $options: 'i' };
     }
 
-    if (tag) {
-      const tagArray = tag
-        .split(',')
-        .map(t => t.trim())
-        .filter(Boolean);
-
-      if (tagArray.length) {
-        query.tags = { $in: tagArray };
-      }
+    if (tagArray?.length) {
+      query.tags = { $in: tagArray };
     }
 
-    if (status) {
-      query.status = status;
-    } else {
-      query.status = 'published';
-    }
-
-    const [blogs, total] = await Promise.all([
-      Blog.find(query)
+    // Fetch popular blogs
+    const popularBlogs = await Blog.find(query)
+      .populate('user_id', 'name avatar')
         .sort({ impression: -1, updatedAt: -1 })
         .skip((page - 1) * limit)
         .limit(limit)
-        .select('-__v -description -content -cover_image -user_id'),
+      .select('-__v -content');
 
-      Blog.countDocuments(query),
-    ]);
+    // Fetch new blogs (last 72h)
+    const now = new Date();
+    const seventyTwoHoursAgo = new Date(now.getTime() - 72 * 60 * 60 * 1000);
+    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
-    const pagination = {
+    const newBlogs = await Blog.find({
+      status,
+      createdAt: { $gte: seventyTwoHoursAgo },
+      _id: { $nin: popularBlogs.map(b => b._id) },
+    })
+      .populate('user_id', 'name avatar')
+      .sort({ createdAt: -1 })
+      .select('-__v -content');
+
+    // Split into buckets
+    const todayBlogs = [];
+    const recentBlogs = [];
+
+    newBlogs.forEach(blog => {
+      if (blog.createdAt >= twentyFourHoursAgo) {
+        todayBlogs.push(blog);
+      } else {
+        recentBlogs.push(blog);
+      }
+    });
+
+    // Pick boosted blogs
+    const boosted = [];
+
+    // Slot 2 → today blog first, fallback to recent
+    if (todayBlogs.length) {
+      boosted.push(todayBlogs.shift());
+    } else if (recentBlogs.length) {
+      boosted.push(recentBlogs.shift());
+    }
+
+    // Remaining pool for slot 3 & 4
+    const remainingNewBlogs = [...todayBlogs, ...recentBlogs];
+
+    // Shuffle remaining (controlled randomness)
+    for (let i = remainingNewBlogs.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [remainingNewBlogs[i], remainingNewBlogs[j]] = [
+        remainingNewBlogs[j],
+        remainingNewBlogs[i],
+      ];
+    }
+
+    if (remainingNewBlogs[0]) boosted.push(remainingNewBlogs[0]);
+    if (remainingNewBlogs[1]) boosted.push(remainingNewBlogs[1]);
+
+    // Inject into list
+    const finalBlogs = [];
+    let boostIndex = 0;
+
+    popularBlogs.forEach((blog, index) => {
+      // Inject at 2nd, 3rd, 4th positions
+      if (index >= 1 && index <= 3 && boosted[boostIndex]) {
+        finalBlogs.push({
+          ...boosted[boostIndex].toObject(),
+          isBoosted: true,
+          boostType: 'new',
+        });
+        boostIndex++;
+      }
+
+      finalBlogs.push(blog);
+    });
+
+    // Pagination info
+    const total = await Blog.countDocuments(query);
+
+    const paginationInfo = {
       page,
       limit,
       total,
@@ -80,8 +135,8 @@ const getAllBlogs = async (req, res) => {
 
     return sendSuccessWithPagination(
       res,
-      blogs,
-      pagination,
+      finalBlogs,
+      paginationInfo,
       'Blogs fetched successfully'
     );
   } catch (error) {
@@ -96,7 +151,13 @@ const getAllBlogs = async (req, res) => {
 
 const getBlogBySlug = async (req, res) => {
   try {
-    const blog = await Blog.findOne({ slug: req.params.slug })
+    const slug = sanitizeSlug(req.params.slug);
+    if (!slug) {
+      return sendNotFound(res, 'Blog not found');
+    }
+
+    // Fetch blog WITHOUT status filter
+    const blog = await Blog.findOne({ slug })
       .populate('user_id', 'name email username avatar bio')
       .select('-__v');
 
@@ -104,14 +165,21 @@ const getBlogBySlug = async (req, res) => {
       return sendNotFound(res, 'Blog not found');
     }
 
-    // increment views
+    const isOwner =
+      req.userId &&
+      blog.user_id &&
+      blog.user_id._id.toString() === req.userId;
+
+    if (!isOwner && blog.status !== 'published') {
+      return sendNotFound(res, 'Blog not found');
+    }
+
     blog.impression += 1;
     await blog.save();
 
-    // 🔥 emit event on every x views
     const viewsThreshold = parseInt(process.env.BLOG_VIEWS_EMAIL_THRESHOLD, 10);
     if (blog.impression % viewsThreshold === 0) {
-      blogEvents.emit('viewsThreshold', blog);
+      blogEvents.emit('viewsThreshold', { blog, user: blog.user_id });
     }
 
     return sendSuccess(res, blog, 'Blog fetched successfully');
@@ -173,6 +241,7 @@ const importBlogsFromCSV = async (req, res) => {
       const validation = validateBlogData(row, {
         requireTitle: true,
         requireContent: true,
+        requireDescription: true, // Description is required for CSV import
       });
 
       // Collect validation errors with row number
@@ -273,7 +342,11 @@ const importBlogsFromCSV = async (req, res) => {
  */
 const updateBlog = async (req, res) => {
   try {
-    const { slug } = req.params;
+    // Sanitize slug to prevent injection
+    const slug = sanitizeSlug(req.params.slug);
+    if (!slug) {
+      return sendNotFound(res, 'Blog not found');
+    }
 
     // Find the blog
     const blog = await Blog.findOne({ slug });
@@ -315,12 +388,36 @@ const updateBlog = async (req, res) => {
       validation.data.slug = newSlug;
     }
 
+    // Moderation flow: if user requests "published", route it to "pending_approval".
+    // This ensures every publish intent goes through AI moderation.
+    const wasPendingApproval = blog.status === 'pending_approval';
+    const requestedPublish = validation.data.status === 'published';
+    if (requestedPublish) {
+      validation.data.status = 'pending_approval';
+    }
+
     // Update the blog
     Object.assign(blog, validation.data);
     await blog.save();
 
     // Populate user data
     await blog.populate('user_id', 'name email username avatar bio');
+
+    // Trigger moderation when:
+    // 1) status just moved to pending_approval, or
+    // 2) user explicitly tried to publish again, or
+    // 3) pending blog content/title/description changed and needs re-check.
+    const moderationFieldsUpdated = ['title', 'description', 'content'].some((field) =>
+      Object.prototype.hasOwnProperty.call(validation.data, field)
+    );
+
+    const shouldTriggerModeration =
+      blog.status === 'pending_approval' &&
+      (!wasPendingApproval || requestedPublish || moderationFieldsUpdated);
+
+    if (shouldTriggerModeration) {
+      blogEvents.emit('blogModeration', { blog });
+    }
 
     return sendSuccess(res, blog, 'Blog updated successfully');
   } catch (error) {
@@ -342,6 +439,7 @@ const createBlog = async (req, res) => {
     const validation = validateBlogData(req.body, {
       requireTitle: true,
       requireContent: true,
+      requireDescription: true, // Description is required for blog creation
     });
 
     if (!validation.isValid) {
@@ -364,11 +462,22 @@ const createBlog = async (req, res) => {
       user_id: req.userId, // Use authenticated user's ID
     };
 
+    // Moderation flow: if status is 'published', save as 'pending_approval'
+    // Draft blogs are saved as-is
+    if (blogData.status === 'published') {
+      blogData.status = 'pending_approval';
+    }
+
     // Create blog
     const blog = await Blog.create(blogData);
 
     // Populate user data
     await blog.populate('user_id', 'name email username avatar bio');
+
+    // Trigger moderation event if blog is pending approval (non-blocking)
+    if (blog.status === 'pending_approval') {
+      blogEvents.emit('blogModeration', { blog });
+    }
 
     return sendSuccess(res, blog, 'Blog created successfully', 201);
   } catch (error) {
@@ -387,32 +496,23 @@ const createBlog = async (req, res) => {
 const getMyBlogs = async (req, res) => {
   try {
     const defaultLimit = Number(process.env.PAGINATION_LIMIT) || 10;
-    let { page = 1, limit = defaultLimit, tag, status, search } = req.query;
+    const { page, limit } = sanitizePagination(req.query.page, req.query.limit || defaultLimit);
+    const search = req.query.search ? escapeRegex(req.query.search.trim()) : null;
+    const status = req.query.status ? sanitizeStatus(req.query.status) : null;
+    const tagArray = req.query.tag ? sanitizeStringArray(req.query.tag) : null;
 
-    // Ensure page is at least 1
-    page = parseInt(page);
-    if (!page || page < 1) {
-      page = 1;
-    }
-
-    limit = parseInt(limit);
-
-    // Build query - filter by logged-in user's ID
-    const query = {
-      user_id: req.userId, // Only blogs created by the authenticated user
-    };
+    const query = {user_id: req.userId,};
 
     // Filter by title if provided
-    if (search && search.trim()) {
+    if (search) {
       query.title = {
-        $regex: search.trim(),
+        $regex: search,
         $options: 'i', // case-insensitive
       };
     }
     
     // Filter by tag if provided
-    if (tag) {
-      const tagArray = tag.split(',').map((t) => t.trim()).filter((t) => t.length > 0);
+    if (tagArray && tagArray.length > 0) {
       query.tags = { $in: tagArray };
     }
 
@@ -421,18 +521,18 @@ const getMyBlogs = async (req, res) => {
       query.status = status;
     }
 
-    // Fetch blogs
+    // Fetch blogs, ordered by updatedAt descending (most recently updated first)
     const blogs = await Blog.find(query)
-      .sort({ impression: -1, updatedAt: -1 })
+      .sort({ updatedAt: -1 })
       .limit(limit * 1)
       .skip((page - 1) * limit)
-      .select('-__v -description -content -cover_image -user_id -tags -status');
+      .select('-__v -description -content -cover_image -user_id -tags');
 
     const total = await Blog.countDocuments(query);
 
-    const pagination = {
-      page: parseInt(page),
-      limit: parseInt(limit),
+    const paginationInfo = {
+      page,
+      limit,
       total,
       pages: Math.ceil(total / limit),
     };
@@ -440,11 +540,77 @@ const getMyBlogs = async (req, res) => {
     return sendSuccessWithPagination(
       res,
       blogs,
-      pagination,
+      paginationInfo,
       'Your blogs fetched successfully'
     );
   } catch (error) {
     return sendError(res, 'Error fetching your blogs', 500, error.message);
+  }
+};
+
+/**
+ * Search tags and return tags with count
+ * @route GET /blog/tags/search
+ */
+const searchTags = async (req, res) => {
+  try {
+    const searchQuery = req.query.q || req.query.search || '';
+    
+    // Sanitize search query
+    const trimmedQuery = searchQuery.trim();
+    
+    if (!trimmedQuery || trimmedQuery.length === 0) {
+      return sendValidationError(res, 'Search query is required');
+    }
+
+    // Escape regex special characters and convert to lowercase (tags are stored lowercase)
+    const sanitizedQuery = escapeRegex(trimmedQuery.toLowerCase());
+
+    // Use MongoDB aggregation pipeline for optimal performance
+    const pipeline = [
+      // Unwind tags array to get individual tags
+      { $unwind: '$tags' },
+      
+      // Match tags that start with the search query
+      // Since tags are stored lowercase, we can use exact match with regex
+      {
+        $match: {
+          tags: {
+            $regex: `^${sanitizedQuery}`,
+            $options: 'i' // Case-insensitive for safety
+          }
+        }
+      },
+      
+      // Group by tag and count occurrences
+      {
+        $group: {
+          _id: '$tags',
+          count: { $sum: 1 }
+        }
+      },
+      
+      // Rename _id to tag and format output
+      {
+        $project: {
+          _id: 0,
+          tag: '$_id',
+          count: 1
+        }
+      },
+      
+      // Sort by count descending (most popular first)
+      { $sort: { count: -1 } },
+      
+      // Optional: Limit results (default to 50)
+      { $limit: 50 }
+    ];
+
+    const tags = await Blog.aggregate(pipeline);
+
+    return sendSuccess(res, tags, `Found ${tags.length} tag(s) matching "${trimmedQuery}"`);
+  } catch (error) {
+    return sendError(res, 'Error searching tags', 500, error.message);
   }
 };
 
@@ -455,4 +621,5 @@ module.exports = {
   getMyBlogs,
   importBlogsFromCSV,
   updateBlog,
+  searchTags,
 };
